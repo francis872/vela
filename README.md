@@ -26,9 +26,16 @@ Incluye tres módulos iniciales:
 
 Estas credenciales se crean automáticamente en la tabla `User` cuando no existen usuarios.
 
-5. Ejecuta migraciones:
+5. Ejecuta migraciones de desarrollo:
 ```bash
 npm run db:migrate -- --name init
+```
+
+Si ya tenías una base existente sin historial de migraciones, crea una baseline sin perder datos:
+
+```bash
+npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > prisma/migrations/0001_init/migration.sql
+npx prisma migrate resolve --applied 0001_init
 ```
 
 6. (Opcional) Abre Prisma Studio:
@@ -59,13 +66,35 @@ Abre [http://localhost:3000](http://localhost:3000) para ver la plataforma.
 npm run dev
 npm run lint
 npm run build
+npm run vercel-build
 npm run db:generate
 npm run db:push
 npm run db:migrate -- --name init
+npm run db:migrate:deploy
+npm run db:migrate:status
 npm run db:reset-dev
 npm run users:seed
 npm run users:seed -- --reset
 ```
+
+## Deploy en Vercel
+
+1. Conecta el repositorio en Vercel.
+2. En Project Settings -> Build & Development Settings, usa como Build Command:
+
+```bash
+npm run vercel-build
+```
+
+3. Configura variables de entorno en Vercel:
+
+- `DATABASE_URL` (PostgreSQL pública, no localhost)
+- `AUTH_SECRET` (valor largo y aleatorio)
+- `VELA_ADMIN_PASSWORD`
+- `VELA_ANALISTA_PASSWORD`
+- `VELA_OPERADOR_PASSWORD`
+
+4. Redeploy. `vercel-build` ejecuta `prisma migrate deploy` antes de construir Next.js.
 
 `users:seed` crea (si faltan) los usuarios por defecto. Con `--reset` recrea credenciales por defecto.
 
