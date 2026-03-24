@@ -1,0 +1,101 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  analista
+  operador
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  role         UserRole
+  passwordHash String
+  active       Boolean  @default(true)
+  age          Int?
+  trajectory   String?
+  contact      String?
+  position     String?
+  bio          String?
+  profileReady Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  quickActions QuickActionExecution[]
+
+  @@index([role])
+  @@index([active])
+}
+
+model QuickActionExecution {
+  id        String   @id @default(cuid())
+  actionKey String
+  module    String
+  context   String?
+  message   String
+  userId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([module])
+  @@index([actionKey])
+  @@index([userId])
+}
+
+model BuilderExperiment {
+  id            String   @id @default(cuid())
+  title         String
+  stage         String
+  result        String
+  createdById   String
+  createdByName String
+  createdByEmail String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([createdAt])
+  @@index([stage])
+}
+
+model CoworkingMessage {
+  id           String   @id @default(cuid())
+  content      String
+  authorId     String
+  authorName   String
+  authorEmail  String
+  authorRole   UserRole
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([authorId])
+}
+
+model Evaluation {
+  id                   String   @id @default(cuid())
+  monthlyRevenue       Float
+  monthlyCosts         Float
+  potentialMargin      Int
+  digitalization       Int
+  replicability        Int
+  differentiation      Int
+  iev                  Int
+  classification       String
+  survivalProbability  Float
+  revenueDoubleProb    Float
+  expansionProbability Float
+  formalizationProb    Float
+  failureRisk          Float
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([createdAt])
+  @@index([classification])
+}
