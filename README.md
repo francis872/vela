@@ -86,7 +86,7 @@ npm run users:seed -- --reset
 npm run vercel-build
 ```
 
-3. Configura variables de entorno en Vercel:
+3. Configura variables de entorno en Vercel (antes del primer deploy):
 
 - `DATABASE_URL` (PostgreSQL pública, no localhost)
 - `AUTH_SECRET` (valor largo y aleatorio)
@@ -94,7 +94,9 @@ npm run vercel-build
 - `VELA_ANALISTA_PASSWORD`
 - `VELA_OPERADOR_PASSWORD`
 
-4. Redeploy. `vercel-build` ejecuta `prisma migrate deploy` antes de construir Next.js.
+4. Si despliegas por CLI desde tu máquina, no subas `.env` local. Este repo ya incluye `.vercelignore` para evitarlo.
+
+5. Redeploy. `vercel-build` ejecuta `prisma migrate deploy` antes de construir Next.js.
 
 `users:seed` crea (si faltan) los usuarios por defecto. Con `--reset` recrea credenciales por defecto.
 
