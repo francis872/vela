@@ -245,6 +245,9 @@ export default function AdminUsersPage() {
             <Link href="/" className="text-sm font-medium underline">
               Volver al inicio
             </Link>
+            <Link href="/admin/content" className="text-sm font-medium underline">
+              Admin contenido
+            </Link>
             <Link href="/dashboard" className="text-sm font-medium underline">
               Ir al dashboard
             </Link>

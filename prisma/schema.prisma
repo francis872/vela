@@ -28,10 +28,110 @@ model User {
   profileReady Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-  quickActions QuickActionExecution[]
+  quickActions      QuickActionExecution[]
+  connectionsFrom   UserConnection[] @relation("ConnectionsFrom")
+  connectionsTo     UserConnection[] @relation("ConnectionsTo")
+  authSessions      AuthSession[]
+  accessLogs        AccessLog[]
+  passwordResets    PasswordResetToken[]
+  auditLogs         AuditLog[]
+  venture           Venture?
+  organizationUsers OrganizationUser[]
+  aiMemories        AIMemory[] @relation("AIMemories")
+  aiConversations   AIConversation[] @relation("AIConversations")
+  realtimeConnections RealtimeConnection[] @relation("RealtimeConnections")
+  aiProcessingQueues AIProcessingQueue[] @relation("AIProcessingQueues")
 
   @@index([role])
   @@index([active])
+}
+
+model AuthSession {
+  id         String   @id @default(cuid())
+  userId     String
+  tokenHash  String   @unique
+  userAgent  String?
+  ip         String?
+  city       String?
+  country    String?
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  revokedAt  DateTime?
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([revokedAt])
+}
+
+model AccessLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  email      String?
+  ip         String?
+  userAgent  String?
+  city       String?
+  country    String?
+  success    Boolean
+  reason     String?
+  createdAt  DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([email])
+  @@index([createdAt])
+  @@index([success])
+}
+
+model PasswordResetToken {
+  id         String   @id @default(cuid())
+  userId     String
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([usedAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  module     String
+  detail     String?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([module])
+  @@index([createdAt])
+}
+
+model UserConnection {
+  id         String         @id @default(cuid())
+  fromUserId String
+  toUserId   String
+  type       ConnectionType @default(follow)
+  createdAt  DateTime       @default(now())
+  fromUser   User           @relation("ConnectionsFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser     User           @relation("ConnectionsTo",   fields: [toUserId],   references: [id], onDelete: Cascade)
+
+  @@unique([fromUserId, toUserId])
+  @@index([fromUserId])
+  @@index([toUserId])
+}
+
+enum ConnectionType {
+  follow
+  collaborate
+  mentor
 }
 
 model QuickActionExecution {
@@ -80,6 +180,14 @@ model CoworkingMessage {
 
 model Evaluation {
   id                   String   @id @default(cuid())
+  companyName          String   @default("Empresa sin nombre")
+  companySector        String   @default("general")
+  businessModel        String   @default("other")
+  companyStage         String   @default("validation")
+  trajectorySummary    String   @default("")
+  challengeSummary     String   @default("")
+  yearsOperating       Int      @default(0)
+  teamSize             Int      @default(1)
   monthlyRevenue       Float
   monthlyCosts         Float
   potentialMargin      Int
@@ -98,4 +206,644 @@ model Evaluation {
 
   @@index([createdAt])
   @@index([classification])
+  @@index([companyStage])
+  @@index([businessModel])
+}
+
+model EcosystemContent {
+  id            String   @id @default(cuid())
+  module        String
+  category      String
+  title         String
+  summary       String
+  detail        String?
+  meta          String?
+  tags          String[] @default([])
+  sortOrder     Int      @default(0)
+  seedKey       String?  @unique
+  createdById   String?
+  createdByName String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([module])
+  @@index([module, category])
+  @@index([sortOrder])
+}
+
+// ─── Startup Operating System Models ─────────────────────────────────────────
+
+model Cycle {
+  id          String      @id @default(cuid())
+  name        String
+  startDate   DateTime
+  endDate     DateTime
+  status      CycleStatus @default(active)
+  ownerId     String
+  ownerName   String
+  objectives  Objective[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([ownerId])
+  @@index([status])
+}
+
+model Objective {
+  id          String            @id @default(cuid())
+  title       String
+  description String?
+  status      ObjectiveStatus   @default(on_track)
+  priority    Int               @default(1)
+  dueDate     DateTime?
+  cycleId     String?
+  cycle       Cycle?            @relation(fields: [cycleId], references: [id], onDelete: SetNull)
+  ventureId   String?
+  venture     Venture?          @relation("VentureObjectives", fields: [ventureId], references: [id], onDelete: SetNull)
+  ownerId     String
+  ownerName   String
+  signals     Signal[]
+  dependencies    ObjectiveDependency[] @relation("ObjectiveDeps")
+  blockedBy       ObjectiveDependency[] @relation("ObjectiveBlockedBy")
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([ownerId])
+  @@index([status])
+  @@index([cycleId])
+  @@index([ventureId])
+}
+
+model ObjectiveDependency {
+  id          String    @id @default(cuid())
+  objectiveId String
+  dependsOnId String
+  ownerId     String
+  createdAt   DateTime  @default(now())
+  objective   Objective @relation("ObjectiveDeps",    fields: [objectiveId], references: [id], onDelete: Cascade)
+  dependsOn   Objective @relation("ObjectiveBlockedBy", fields: [dependsOnId], references: [id], onDelete: Cascade)
+
+  @@unique([objectiveId, dependsOnId])
+  @@index([ownerId])
+  @@index([objectiveId])
+  @@index([dependsOnId])
+}
+
+model Signal {
+  id          String        @id @default(cuid())
+  type        SignalType
+  title       String
+  result      String?
+  hypothesis  String?
+  learning    String?
+  objectiveId String?
+  objective   Objective?    @relation(fields: [objectiveId], references: [id], onDelete: SetNull)
+  ownerId     String
+  ownerName   String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([ownerId])
+  @@index([type])
+  @@index([objectiveId])
+}
+
+model Gate {
+  id          String      @id @default(cuid())
+  name        String
+  stage       String
+  criteria    String
+  status      GateStatus  @default(pending)
+  ownerId     String
+  ownerName   String
+  decidedAt   DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([ownerId])
+  @@index([status])
+}
+
+model Thread {
+  id          String        @id @default(cuid())
+  title       String
+  body        String
+  category    ThreadCategory @default(update)
+  authorId    String
+  authorName  String
+  authorRole  UserRole
+  pinned      Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([authorId])
+  @@index([category])
+  @@index([pinned])
+}
+
+enum CycleStatus {
+  active
+  completed
+  paused
+}
+
+enum ObjectiveStatus {
+  on_track
+  at_risk
+  blocked
+  completed
+}
+
+enum SignalType {
+  experiment
+  interview
+  metric
+  insight
+}
+
+enum GateStatus {
+  pending
+  passed
+  failed
+}
+
+enum ThreadCategory {
+  update
+  blocker
+  decision
+  win
+}
+
+// ─── BiZZu + Execution Engine + Score ────────────────────────────────────────
+
+model StartupProfile {
+  id              String   @id @default(cuid())
+  ownerId         String   @unique
+  ownerName       String
+  problem         String?
+  solution        String?
+  targetMarket    String?
+  stage           String   @default("idea")
+  teamDescription String?
+  revenueModel    String?
+  mainChallenge   String?
+  nextGoal        String?
+  vision          String?
+  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now())
+
+  @@index([ownerId])
+}
+
+model Sprint {
+  id        String       @id @default(cuid())
+  title     String
+  weekStart DateTime
+  weekEnd   DateTime
+  ownerId   String
+  ownerName String
+  status    SprintStatus @default(active)
+  items     SprintItem[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([ownerId])
+  @@index([status])
+}
+
+model SprintItem {
+  id       String @id @default(cuid())
+  title    String
+  done     Boolean @default(false)
+  sprintId String
+  sprint   Sprint @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+
+  @@index([sprintId])
+}
+
+model FounderScore {
+  id            String   @id @default(cuid())
+  ownerId       String   @unique
+  ownerName     String
+  execution     Int      @default(0)
+  results       Int      @default(0)
+  collaboration Int      @default(0)
+  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now())
+
+  @@index([ownerId])
+}
+
+model Decision {
+  id         String   @id @default(cuid())
+  title      String
+  context    String
+  choice     String
+  rationale  String
+  outcome    String?
+  ownerId    String
+  ownerName  String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([ownerId])
+  @@index([createdAt])
+}
+
+enum SprintStatus {
+  active
+  completed
+  blocked
+}
+
+model InspirePost {
+  id         String   @id @default(cuid())
+  content    String
+  authorName String
+  ownerId    String
+  likes      Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([ownerId])
+}
+
+model SpaceResource {
+  id         String   @id @default(cuid())
+  title      String
+  desc       String
+  tag        String   @default("Recurso")
+  url        String?
+  authorName String
+  ownerId    String
+  createdAt  DateTime @default(now())
+
+  @@index([ownerId])
+  @@index([tag])
+  @@index([createdAt])
+}
+
+// ─── VELA: Waitlist & MVP ─────────────────────────────────────────────────────
+
+model WaitlistSignup {
+  id                String   @id @default(cuid())
+  name              String
+  email             String   @unique
+  phone             String?
+  city              String?
+  ventureName       String
+  sector            String?
+  stage             String?  // idea, validation, traction, growth
+  monthlyRevenue    Float?
+  mainNeed          String?
+  populationTag     String?  // optional: low-income, women, youth, rural, migrant, etc.
+  interestedInBeta  Boolean  @default(false)
+  status            String   @default("pending") // pending, contacted, signup, opted_out
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([email])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Venture {
+  id                String              @id @default(cuid())
+  userId            String              @unique
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name              String
+  sector            String
+  stage             String              // idea, validation, traction, growth
+  description       String?
+  yearsOperating    Int                 @default(0)
+  teamSize          Int                 @default(1)
+  customers         String?             // description of customer base
+  monthlyRevenue    Float?              @default(0)
+  monthlyCosts      Float?              @default(0)
+  diagnostics       Diagnostic[]
+  objectives        Objective[]         @relation("VentureObjectives")
+  cohorts           CohortVenture[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([userId])
+  @@index([stage])
+}
+
+model Diagnostic {
+  id                String              @id @default(cuid())
+  ventureId         String
+  venture           Venture             @relation(fields: [ventureId], references: [id], onDelete: Cascade)
+  
+  // 6-dimension responses
+  problem           String?             // Dimension 1: Problem & Value Proposition
+  targetCustomers   String?             // Dimension 2: Customers & Validation
+  businessModel     String?             // Dimension 3: Business Model
+  marketing         String?             // Dimension 4: Marketing & Sales
+  financials        String?             // Dimension 5: Finances
+  organization      String?             // Dimension 6: Organization & Team
+  
+  status            String              @default("draft") // draft, submitted, analyzed
+  analysis          DiagnosticAnalysis?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([ventureId])
+  @@index([status])
+}
+
+model DiagnosticAnalysis {
+  id                String      @id @default(cuid())
+  diagnosticId      String      @unique
+  diagnostic        Diagnostic  @relation(fields: [diagnosticId], references: [id], onDelete: Cascade)
+  
+  maturityScore     Int         @default(0)   // 0-100
+  strengths         String[]    @default([])  // JSON array
+  risks             String[]    @default([])  // JSON array
+  validations       String[]    @default([])  // Things that need validation
+  recommendations   String[]    @default([])  // Prioritized recommendations
+  
+  days30Plan        String?     // 30-day roadmap
+  days60Plan        String?     // 60-day roadmap
+  days90Plan        String?     // 90-day roadmap
+  
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@index([diagnosticId])
+}
+
+model Organization {
+  id                String             @id @default(cuid())
+  name              String
+  type              String             // university, incubator, foundation, municipality, coc, etc.
+  city              String?
+  email             String?
+  contact           String?
+  users             OrganizationUser[]
+  cohorts           Cohort[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([type])
+  @@index([city])
+}
+
+model OrganizationUser {
+  id                String       @id @default(cuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role              String       @default("viewer") // admin, mentor, viewer
+  createdAt         DateTime     @default(now())
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+// ─── AI Intelligence & Memory System ──────────────────────────────────────────
+
+model AIModel {
+  id                String            @id @default(cuid())
+  name              String            // llama, mistral, etc.
+  provider          String            // ollama, openai, huggingface
+  baseUrl           String?           // http://localhost:11434 for Ollama
+  apiKey            String?           // encrypted in production
+  modelId           String            // model identifier
+  contextWindow     Int               @default(2048) // tokens
+  maxTokensOutput   Int               @default(1024)
+  temperature       Float             @default(0.7)
+  topP              Float             @default(0.95)
+  isActive          Boolean           @default(true)
+  isDefault         Boolean           @default(false)
+  costPerToken      Float?            // for cloud models
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  conversations     AIConversation[]
+  memories          AIMemory[]
+
+  @@index([provider])
+  @@index([isActive])
+}
+
+model AIMemory {
+  id                String            @id @default(cuid())
+  userId            String
+  user              User              @relation("AIMemories", fields: [userId], references: [id], onDelete: Cascade)
+  modelId           String
+  model             AIModel           @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  
+  type              String            // context, pattern, insight, rule, user_preference
+  category          String            // diagnostic, objective, pattern, user_behavior
+  
+  key               String            
+  content           String            @db.Text
+  metadata          String?           @db.Text
+  
+  importance        Float             @default(0.5)
+  accessCount       Int               @default(0)
+  lastAccessedAt    DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  expiresAt         DateTime?
+
+  @@unique([userId, modelId, key])
+  @@index([userId])
+  @@index([modelId])
+  @@index([type])
+  @@index([category])
+}
+
+model AIConversation {
+  id                String            @id @default(cuid())
+  userId            String
+  user              User              @relation("AIConversations", fields: [userId], references: [id], onDelete: Cascade)
+  modelId           String
+  model             AIModel           @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  
+  module            String            // vela_guide, bizzu, diagnostics
+  topic             String?
+  title             String?
+  
+  messages          String            @db.Text
+  messageCount      Int               @default(0)
+  totalTokens       Int               @default(0)
+  
+  resolution        String?           @db.Text
+  satisfaction      Int?
+  helpful           Boolean?
+  
+  startedAt         DateTime          @default(now())
+  completedAt       DateTime?
+  duration          Int?
+
+  @@index([userId])
+  @@index([modelId])
+  @@index([module])
+  @@index([startedAt])
+}
+
+model DataCache {
+  id                String            @id @default(cuid())
+  cacheKey          String            @unique
+  module            String
+  dataType          String
+  
+  value             String            @db.Text
+  metadata          String?           @db.Text
+  
+  hitCount          Int               @default(0)
+  bytesSize         Int
+  computeTimeMs     Int?
+  
+  createdAt         DateTime          @default(now())
+  lastAccessedAt    DateTime?
+  expiresAt         DateTime
+
+  @@index([module])
+  @@index([dataType])
+  @@index([expiresAt])
+}
+
+model RealtimeConnection {
+  id                String            @id @default(cuid())
+  userId            String
+  user              User              @relation("RealtimeConnections", fields: [userId], references: [id], onDelete: Cascade)
+  
+  sessionId         String            @unique
+  connectionType    String            // websocket, sse, polling
+  module            String
+  
+  isActive          Boolean           @default(true)
+  lastHeartbeat     DateTime          @default(now())
+  messagesReceived  Int               @default(0)
+  messagesSent      Int               @default(0)
+  
+  createdAt         DateTime          @default(now())
+  disconnectedAt    DateTime?
+
+  @@index([userId])
+  @@index([module])
+  @@index([isActive])
+}
+
+model AIProcessingQueue {
+  id                String            @id @default(cuid())
+  userId            String
+  user              User              @relation("AIProcessingQueues", fields: [userId], references: [id], onDelete: Cascade)
+  
+  taskType          String
+  module            String
+  input             String            @db.Text
+  
+  modelId           String?
+  priority          Int               @default(0)
+  
+  status            String            @default("pending")
+  result            String?           @db.Text
+  error             String?
+  
+  startedAt         DateTime?
+  completedAt       DateTime?
+  processingTimeMs  Int?
+
+  @@index([userId])
+  @@index([taskType])
+  @@index([status])
+}
+
+model AIStatistics {
+  id                String            @id @default(cuid())
+  date              DateTime
+  module            String
+  
+  totalRequests     Int               @default(0)
+  successfulRequests Int              @default(0)
+  failedRequests    Int               @default(0)
+  
+  avgResponseTimeMs Float             @default(0)
+  avgTokensPerRequest Float           @default(0)
+  totalTokensUsed   Int               @default(0)
+  
+  estimatedCost     Float?
+  
+  createdAt         DateTime          @default(now())
+
+  @@unique([date, module])
+  @@index([date])
+}
+
+model Cohort {
+  id                String           @id @default(cuid())
+  organizationId    String
+  organization      Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name              String
+  description       String?
+  startDate         DateTime
+  endDate           DateTime?
+  status            String           @default("active") // active, completed, archived
+  ventures          CohortVenture[]
+  metrics           EngagementMetric[]
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([organizationId])
+  @@index([status])
+}
+
+model CohortVenture {
+  id         String   @id @default(cuid())
+  cohortId   String
+  cohort     Cohort   @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  ventureId  String
+  venture    Venture  @relation(fields: [ventureId], references: [id], onDelete: Cascade)
+  joinedAt   DateTime @default(now())
+
+  @@unique([cohortId, ventureId])
+  @@index([cohortId])
+  @@index([ventureId])
+}
+
+model EngagementMetric {
+  id                String    @id @default(cuid())
+  ventureId         String?
+  cohortId          String?
+  cohort            Cohort?   @relation(fields: [cohortId], references: [id], onDelete: SetNull)
+  
+  // Activation
+  registeredAt      DateTime?
+  diagnosticStartedAt DateTime?
+  diagnosticCompletedAt DateTime?
+  firstObjectiveAt  DateTime?
+  
+  // Retention
+  lastLoginAt       DateTime?
+  day7Active        Boolean   @default(false)
+  day30Active       Boolean   @default(false)
+  week3Active       Boolean   @default(false)
+  
+  // Engagement
+  objectivesCreated Int       @default(0)
+  tasksCreated      Int       @default(0)
+  tasksCompleted    Int       @default(0)
+  businessInfoUpdated Boolean @default(false)
+  recommendationsViewed Int   @default(0)
+  
+  // Application
+  recommendationsApplied Int @default(0)
+  recommendationExamples String? // JSON array with examples
+  
+  // Satisfaction
+  satisfactionScore Int? // 1-5
+  wouldRecommend    Boolean?
+  clarityImprovement Boolean? // "Do you have greater clarity about your business?"
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([ventureId])
+  @@index([cohortId])
 }

@@ -5,6 +5,14 @@ import { computeScore } from "@/lib/scoring";
 import { requireRole } from "@/lib/auth";
 
 const evaluationSchema = z.object({
+  companyName: z.string().min(2).max(160).optional(),
+  companySector: z.string().min(2).max(120).optional(),
+  businessModel: z.string().min(2).max(120).optional(),
+  companyStage: z.string().min(2).max(120).optional(),
+  trajectorySummary: z.string().max(3000).optional(),
+  challengeSummary: z.string().max(3000).optional(),
+  yearsOperating: z.number().int().min(0).max(200).optional(),
+  teamSize: z.number().int().min(1).max(50000).optional(),
   monthlyRevenue: z.number().min(0),
   monthlyCosts: z.number().min(0),
   potentialMargin: z.number().min(0).max(100),
@@ -55,9 +63,30 @@ export async function POST(request: Request) {
 
     const score = computeScore(parsed.data);
 
+    const companyData = {
+      companyName: parsed.data.companyName?.trim() || "Empresa sin nombre",
+      companySector: parsed.data.companySector?.trim() || "general",
+      businessModel: parsed.data.businessModel?.trim() || "other",
+      companyStage: parsed.data.companyStage?.trim() || "validation",
+      trajectorySummary: parsed.data.trajectorySummary?.trim() || "",
+      challengeSummary: parsed.data.challengeSummary?.trim() || "",
+      yearsOperating: parsed.data.yearsOperating ?? 0,
+      teamSize: parsed.data.teamSize ?? 1,
+    };
+
+    const numericData = {
+      monthlyRevenue: parsed.data.monthlyRevenue,
+      monthlyCosts: parsed.data.monthlyCosts,
+      potentialMargin: parsed.data.potentialMargin,
+      digitalization: parsed.data.digitalization,
+      replicability: parsed.data.replicability,
+      differentiation: parsed.data.differentiation,
+    };
+
     const created = await prisma.evaluation.create({
       data: {
-        ...parsed.data,
+        ...companyData,
+        ...numericData,
         ...score,
       },
     });

@@ -15,6 +15,10 @@ function getAllowedRoles(pathname: string): UserRole[] {
     return ["admin", "analista", "operador"];
   }
 
+  if (pathname.startsWith("/profile")) {
+    return ["admin", "analista", "operador"];
+  }
+
   if (pathname.startsWith("/admin") || pathname.startsWith("/api/admin")) {
     return ["admin"];
   }
@@ -107,6 +111,7 @@ export const config = {
   matcher: [
     "/vela/:path*",
     "/access/:path*",
+    "/profile/:path*",
     "/admin/:path*",
     "/dashboard/:path*",
     "/velaseed/:path*",

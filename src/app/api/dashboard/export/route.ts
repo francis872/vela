@@ -68,6 +68,12 @@ export async function GET(request: Request) {
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
+        companyName: true,
+        companySector: true,
+        businessModel: true,
+        companyStage: true,
+        yearsOperating: true,
+        teamSize: true,
         classification: true,
         iev: true,
         monthlyRevenue: true,
@@ -87,6 +93,12 @@ export async function GET(request: Request) {
 
     const header = [
       "id",
+      "companyName",
+      "companySector",
+      "businessModel",
+      "companyStage",
+      "yearsOperating",
+      "teamSize",
       "classification",
       "iev",
       "monthlyRevenue",
@@ -105,6 +117,12 @@ export async function GET(request: Request) {
 
     const lines = evaluations.map((item: {
       id: string;
+      companyName: string;
+      companySector: string;
+      businessModel: string;
+      companyStage: string;
+      yearsOperating: number;
+      teamSize: number;
       classification: string;
       iev: number;
       monthlyRevenue: number;
@@ -122,6 +140,12 @@ export async function GET(request: Request) {
     }) =>
       [
         item.id,
+        item.companyName,
+        item.companySector,
+        item.businessModel,
+        item.companyStage,
+        item.yearsOperating,
+        item.teamSize,
         item.classification,
         item.iev,
         item.monthlyRevenue,

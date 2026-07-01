@@ -1,124 +1,69 @@
-import { SignJWT, jwtVerify } from "jose";
+import { jwtVerify, SignJWT } from "jose";
 
-export type UserRole = "admin" | "analista" | "operador";
+export const SESSION_COOKIE = "vela_session";
+export const PROFILE_READY_COOKIE = "vela_profile_ready";
+
+export type SessionRole = "admin" | "analista" | "operador";
+export type UserRole = SessionRole;
 
 export type SessionPayload = {
   sub: string;
   email: string;
   name: string;
-  role: UserRole;
+  role: SessionRole;
 };
 
-export function getDefaultRouteByRole(role: UserRole) {
-  if (role === "admin") {
-    return "/admin/users";
-  }
-
-  if (role === "analista") {
-    return "/dashboard";
-  }
-
-  return "/velaseed";
-}
-
-export function getDefaultPortalByRole(role: UserRole) {
-  if (role === "admin") {
-    return "/access/admin";
-  }
-
-  if (role === "analista") {
-    return "/access/dashboard";
-  }
-
-  return "/access/velaseed";
-}
-
-export const SESSION_COOKIE = "vela_session";
-export const PROFILE_READY_COOKIE = "vela_profile_ready";
-
-const encoder = new TextEncoder();
-const secret = encoder.encode(
+const secret = new TextEncoder().encode(
   process.env.AUTH_SECRET || "vela-dev-secret-change-in-production",
 );
 
 export async function signSession(payload: SessionPayload) {
   return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
-    .setSubject(payload.sub)
     .setIssuedAt()
-    .setExpirationTime("7d")
+    .setExpirationTime("30d")
     .sign(secret);
 }
 
 export async function verifySession(token: string) {
-  try {
-    const { payload } = await jwtVerify(token, secret);
+  const verified = await jwtVerify(token, secret);
+  return verified.payload as unknown as SessionPayload;
+}
 
-    if (
-      typeof payload.sub !== "string" ||
-      typeof payload.email !== "string" ||
-      typeof payload.name !== "string" ||
-      (payload.role !== "admin" &&
-        payload.role !== "analista" &&
-        payload.role !== "operador")
-    ) {
-      return null;
+type RequireRoleOk = {
+  ok: true;
+  session: SessionPayload;
+};
+
+type RequireRoleError = {
+  ok: false;
+  status: 401 | 403;
+  error: string;
+};
+
+export async function requireRole(
+  request: Request,
+  roles: SessionRole[],
+): Promise<RequireRoleOk | RequireRoleError> {
+  const cookieHeader = request.headers.get("cookie") || "";
+  const cookies = cookieHeader.split(";").map((item) => item.trim());
+  const entry = cookies.find((item) => item.startsWith(`${SESSION_COOKIE}=`));
+
+  if (!entry) {
+    return { ok: false, status: 401, error: "No hay sesión activa" };
+  }
+
+  const token = decodeURIComponent(entry.slice(`${SESSION_COOKIE}=`.length));
+
+  try {
+    const session = await verifySession(token);
+
+    if (!roles.includes(session.role)) {
+      return { ok: false, status: 403, error: "No autorizado para este recurso" };
     }
 
-    return {
-      sub: payload.sub,
-      email: payload.email,
-      name: payload.name,
-      role: payload.role,
-    } as SessionPayload;
+    return { ok: true, session };
   } catch {
-    return null;
+    return { ok: false, status: 401, error: "Sesión inválida o expirada" };
   }
-}
-
-function extractCookie(request: Request, cookieName: string) {
-  const cookieHeader = request.headers.get("cookie") || "";
-  const cookies = cookieHeader.split(";").map((chunk) => chunk.trim());
-  const found = cookies.find((cookie) => cookie.startsWith(`${cookieName}=`));
-
-  if (!found) {
-    return null;
-  }
-
-  return decodeURIComponent(found.substring(cookieName.length + 1));
-}
-
-export async function requireRole(request: Request, allowedRoles: UserRole[]) {
-  const token = extractCookie(request, SESSION_COOKIE);
-
-  if (!token) {
-    return {
-      ok: false as const,
-      status: 401,
-      error: "No autenticado",
-    };
-  }
-
-  const session = await verifySession(token);
-
-  if (!session) {
-    return {
-      ok: false as const,
-      status: 401,
-      error: "Sesión inválida",
-    };
-  }
-
-  if (!allowedRoles.includes(session.role)) {
-    return {
-      ok: false as const,
-      status: 403,
-      error: "Sin permisos para este recurso",
-    };
-  }
-
-  return {
-    ok: true as const,
-    session,
-  };
 }

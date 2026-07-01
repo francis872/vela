@@ -98,6 +98,49 @@ npm run vercel-build
 
 5. Redeploy. `vercel-build` ejecuta `prisma migrate deploy` antes de construir Next.js.
 
+## Dominio y rollback de producción
+
+Estado actual:
+
+- URL de producción activa: `https://vela-platform-plum.vercel.app`
+- No hay dominios externos cargados en la cuenta Vercel actual.
+
+### Configurar dominio personalizado
+
+1. Agrega tu dominio en Vercel:
+
+```bash
+npx vercel domains add tu-dominio.com
+```
+
+2. Asigna ese dominio al proyecto:
+
+```bash
+npx vercel domains add tu-dominio.com vela-platform
+```
+
+3. Configura los registros DNS que Vercel te indique y espera propagación.
+
+### Rollback rápido
+
+1. Lista deployments recientes:
+
+```bash
+npx vercel ls vela-platform
+```
+
+2. Revierte a un deployment estable por URL o ID:
+
+```bash
+npm run rollback:prod -- <deployment-url-o-id>
+```
+
+3. Promociona manualmente un deployment específico (alternativa):
+
+```bash
+npm run promote:prod -- <deployment-url-o-id>
+```
+
 `users:seed` crea (si faltan) los usuarios por defecto. Con `--reset` recrea credenciales por defecto.
 
 ## Notas del módulo VELASEED

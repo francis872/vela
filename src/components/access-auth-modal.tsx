@@ -1,7 +1,10 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+
+const LAST_EMAIL_KEY = "vela-last-email";
+const LAST_NAME_KEY = "vela-last-name";
 
 type Mode = "login" | "signup";
 
@@ -19,8 +22,25 @@ export default function AccessAuthModal({ triggerLabel = "Iniciar sesión" }: Ac
   const [success, setSuccess] = useState<string | null>(null);
 
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("admin@vela.local");
-  const [password, setPassword] = useState("admin123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const rememberedEmail = window.localStorage.getItem(LAST_EMAIL_KEY);
+    const rememberedName = window.localStorage.getItem(LAST_NAME_KEY);
+
+    if (rememberedEmail) {
+      setEmail(rememberedEmail);
+    }
+
+    if (rememberedName) {
+      setName(rememberedName);
+    }
+  }, []);
 
   const title = useMemo(() => {
     if (mode === "signup") {
@@ -74,6 +94,13 @@ export default function AccessAuthModal({ triggerLabel = "Iniciar sesión" }: Ac
           throw new Error(data.error || "No se pudo iniciar sesión");
         }
 
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(LAST_EMAIL_KEY, email.trim().toLowerCase());
+          if (name.trim().length > 0) {
+            window.localStorage.setItem(LAST_NAME_KEY, name.trim());
+          }
+        }
+
         setOpen(false);
         router.replace("/vela");
         router.refresh();
@@ -92,11 +119,29 @@ export default function AccessAuthModal({ triggerLabel = "Iniciar sesión" }: Ac
         throw new Error(data.error || "No se pudo crear la cuenta");
       }
 
-      setSuccess("Cuenta creada correctamente. Ahora inicia sesión.");
-      setMode("login");
-      if (!password) {
-        setPassword("admin123");
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(LAST_EMAIL_KEY, email.trim().toLowerCase());
+        window.localStorage.setItem(LAST_NAME_KEY, name.trim());
       }
+
+      /* Auto-login after register */
+      const loginRes = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (loginRes.ok) {
+        setOpen(false);
+        router.replace("/vela");
+        router.refresh();
+        return;
+      }
+
+      /* Fallback if auto-login fails */
+      setSuccess("Cuenta creada correctamente. Inicia sesión para continuar.");
+      setMode("login");
+      setPassword("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado");
     } finally {
@@ -109,101 +154,138 @@ export default function AccessAuthModal({ triggerLabel = "Iniciar sesión" }: Ac
       <button
         type="button"
         onClick={openLogin}
-        className="rounded-lg bg-foreground px-4 py-2 text-sm font-semibold text-background"
+        style={{
+          background: "var(--accent)", color: "#fff", border: "none",
+          borderRadius: "0.25rem", padding: "0.65rem 1.25rem",
+          fontSize: "0.88rem", fontWeight: 700, cursor: "pointer",
+          letterSpacing: "0.03em", transition: "background 140ms ease",
+        }}
       >
         {triggerLabel}
       </button>
 
       {open ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md rounded-xl border border-zinc-200 bg-background p-5 dark:border-zinc-800">
-            <div className="flex items-start justify-between gap-3">
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 50,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          background: "rgba(0,0,0,0.65)", padding: "1rem",
+        }}>
+          <div style={{
+            width: "100%", maxWidth: 400,
+            background: "var(--surface)", border: "1px solid var(--border)",
+            borderRadius: "0.5rem", padding: "1.5rem",
+            display: "flex", flexDirection: "column", gap: "1.25rem",
+          }}>
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
               <div>
-                <p className="text-xs font-semibold tracking-wide text-zinc-500">VELA Access</p>
-                <h2 className="text-2xl font-bold">{title}</h2>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", marginBottom: "0.5rem" }}>
+                  <span style={{ color: "var(--accent)", fontSize: "1rem" }}>◈</span>
+                  <span style={{ fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.1em", color: "var(--ink)" }}>VELA OS</span>
+                </div>
+                <h2 style={{ fontSize: "1.4rem", fontWeight: 800, letterSpacing: "-0.02em", color: "var(--ink)", margin: 0 }}>{title}</h2>
               </div>
               <button
                 type="button"
                 onClick={closeModal}
-                className="rounded-md border border-zinc-300 px-3 py-1 text-xs font-semibold dark:border-zinc-700"
+                style={{
+                  background: "var(--surface-2)", border: "1px solid var(--border-mid)",
+                  borderRadius: "0.25rem", padding: "0.3rem 0.6rem",
+                  fontSize: "0.72rem", fontWeight: 600, color: "var(--ink-2)", cursor: "pointer",
+                }}
               >
-                Cerrar
+                ✕
               </button>
             </div>
 
-            <form onSubmit={onSubmit} className="mt-4 space-y-4">
+            {/* Form */}
+            <form onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}>
               {mode === "signup" ? (
-                <label className="block text-sm">
-                  Nombre
+                <label style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                  <span style={{ fontSize: "0.72rem", fontWeight: 600, letterSpacing: "0.04em", color: "var(--ink-2)" }}>Nombre</span>
                   <input
                     type="text"
                     required
+                    autoComplete="name"
                     value={name}
-                    onChange={(event) => setName(event.target.value)}
-                    className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700"
+                    onChange={(e) => setName(e.target.value)}
+                    style={{
+                      background: "var(--surface-2)", border: "1px solid var(--border-mid)",
+                      borderRadius: "0.25rem", padding: "0.6rem 0.75rem",
+                      fontSize: "0.88rem", color: "var(--ink)", outline: "none", width: "100%",
+                    }}
                   />
                 </label>
               ) : null}
 
-              <label className="block text-sm">
-                Email
+              <label style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                <span style={{ fontSize: "0.72rem", fontWeight: 600, letterSpacing: "0.04em", color: "var(--ink-2)" }}>Email</span>
                 <input
                   type="email"
                   required
+                  autoComplete="email"
                   value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700"
+                  onChange={(e) => setEmail(e.target.value)}
+                  style={{
+                    background: "var(--surface-2)", border: "1px solid var(--border-mid)",
+                    borderRadius: "0.25rem", padding: "0.6rem 0.75rem",
+                    fontSize: "0.88rem", color: "var(--ink)", outline: "none", width: "100%",
+                  }}
                 />
               </label>
 
-              <label className="block text-sm">
-                Contraseña
+              <label style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                <span style={{ fontSize: "0.72rem", fontWeight: 600, letterSpacing: "0.04em", color: "var(--ink-2)" }}>Contraseña</span>
                 <input
                   type="password"
                   required
+                  autoComplete={mode === "signup" ? "new-password" : "current-password"}
                   value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700"
+                  onChange={(e) => setPassword(e.target.value)}
+                  style={{
+                    background: "var(--surface-2)", border: "1px solid var(--border-mid)",
+                    borderRadius: "0.25rem", padding: "0.6rem 0.75rem",
+                    fontSize: "0.88rem", color: "var(--ink)", outline: "none", width: "100%",
+                  }}
                 />
               </label>
 
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-lg bg-foreground px-4 py-2 text-sm font-semibold text-background disabled:opacity-70"
+                style={{
+                  background: loading ? "var(--surface-3)" : "var(--accent)",
+                  color: "#fff", border: "none", borderRadius: "0.25rem",
+                  padding: "0.7rem 1rem", fontSize: "0.88rem", fontWeight: 700,
+                  cursor: loading ? "not-allowed" : "pointer", letterSpacing: "0.03em",
+                  width: "100%", transition: "background 140ms ease",
+                }}
               >
                 {loading ? "Procesando..." : mode === "login" ? "Entrar" : "Crear cuenta"}
               </button>
 
-              {error ? <p className="text-sm text-red-500">{error}</p> : null}
-              {success ? <p className="text-sm text-emerald-600">{success}</p> : null}
+              {error   && <p style={{ fontSize: "0.78rem", color: "var(--red)",   margin: 0 }}>{error}</p>}
+              {success && <p style={{ fontSize: "0.78rem", color: "var(--green)", margin: 0 }}>{success}</p>}
             </form>
 
-            <div className="mt-4 text-sm text-zinc-600 dark:text-zinc-300">
+            {/* Mode toggle */}
+            <p style={{ fontSize: "0.78rem", color: "var(--ink-3)", margin: 0 }}>
               {mode === "login" ? (
-                <p>
-                  ¿No tienes sesión?{" "}
-                  <button
-                    type="button"
-                    onClick={openSignup}
-                    className="font-semibold underline"
-                  >
+                <>
+                  ¿Sin cuenta?{" "}
+                  <button type="button" onClick={openSignup} style={{ background: "none", border: "none", padding: 0, color: "var(--accent)", fontWeight: 600, cursor: "pointer", fontSize: "inherit" }}>
                     Crear cuenta
                   </button>
-                </p>
+                </>
               ) : (
-                <p>
+                <>
                   ¿Ya tienes cuenta?{" "}
-                  <button
-                    type="button"
-                    onClick={openLogin}
-                    className="font-semibold underline"
-                  >
+                  <button type="button" onClick={openLogin} style={{ background: "none", border: "none", padding: 0, color: "var(--accent)", fontWeight: 600, cursor: "pointer", fontSize: "inherit" }}>
                     Iniciar sesión
                   </button>
-                </p>
+                </>
               )}
-            </div>
+            </p>
           </div>
         </div>
       ) : null}

@@ -1,28 +1,29 @@
-type ProfileData = {
+import type { SessionRole } from "@/lib/auth";
+
+type ProfileState = {
   name: string;
   age: number | null;
   trajectory: string;
   contact: string;
   position: string;
   bio: string;
-  role: "admin" | "analista" | "operador";
+  role: SessionRole;
   profileReady: boolean;
 };
 
-const profileMemory = new Map<string, ProfileData>();
+const memoryProfileStore = new Map<string, ProfileState>();
 
-export function getFallbackProfile(userId: string, seed: ProfileData) {
-  const existing = profileMemory.get(userId);
-
+export function getFallbackProfile(userId: string, fallback: ProfileState) {
+  const existing = memoryProfileStore.get(userId);
   if (existing) {
     return existing;
   }
 
-  profileMemory.set(userId, seed);
-  return seed;
+  memoryProfileStore.set(userId, fallback);
+  return fallback;
 }
 
-export function setFallbackProfile(userId: string, data: ProfileData) {
-  profileMemory.set(userId, data);
-  return data;
+export function setFallbackProfile(userId: string, profile: ProfileState) {
+  memoryProfileStore.set(userId, profile);
+  return profile;
 }

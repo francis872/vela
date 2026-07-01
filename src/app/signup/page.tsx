@@ -2,151 +2,191 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, Suspense, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
+
+const LAST_EMAIL_KEY = "vela-last-email";
+const LAST_NAME_KEY  = "vela-last-name";
 
 function SignupForm() {
-  const router = useRouter();
+  const router      = useRouter();
   const searchParams = useSearchParams();
-  const nextPath = searchParams.get("next") || "";
-  const portal = searchParams.get("portal");
+  const nextPath    = searchParams.get("next") || "";
+  const portal      = searchParams.get("portal");
 
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [name,     setName]     = useState("");
+  const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState<string | null>(null);
 
-  const portalLabel = useMemo(() => {
-    if (portal === "velaseed") return "Portal VELASEED";
-    if (portal === "dashboard") return "Portal Dashboard";
-    if (portal === "admin") return "Portal Admin";
-    return "Acceso general";
-  }, [portal]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const savedEmail = window.localStorage.getItem(LAST_EMAIL_KEY);
+    const savedName  = window.localStorage.getItem(LAST_NAME_KEY);
+    if (savedEmail) setEmail(savedEmail);
+    if (savedName)  setName(savedName);
+  }, []);
+
+  const loginHref = (() => {
+    const q = new URLSearchParams();
+    if (nextPath) q.set("next", nextPath);
+    if (portal)   q.set("portal", portal);
+    return q.toString() ? `/login?${q.toString()}` : "/login";
+  })();
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setLoading(true);
     setError(null);
-    setSuccess(null);
 
     try {
-      const response = await fetch("/api/auth/register", {
+      /* 1. Register */
+      const regRes = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email, password }),
       });
+      const regData = await regRes.json().catch(() => ({})) as { error?: string };
+      if (!regRes.ok) throw new Error(regData.error || "No se pudo crear la cuenta");
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "No se pudo crear la cuenta");
+      /* 2. Auto-login */
+      const loginRes = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(LAST_EMAIL_KEY, email.trim().toLowerCase());
+        window.localStorage.setItem(LAST_NAME_KEY,  name.trim());
       }
 
-      setSuccess("Cuenta creada. Ahora inicia sesión para continuar.");
-      setTimeout(() => {
-        const query = new URLSearchParams();
-        if (nextPath) {
-          query.set("next", nextPath);
-        }
-        if (portal) {
-          query.set("portal", portal);
-        }
+      if (!loginRes.ok) {
+        /* Fallback if auto-login fails — redirect to login */
+        router.push(loginHref);
+        return;
+      }
 
-        const path = query.toString() ? `/login?${query.toString()}` : "/login";
-        router.push(path);
-      }, 700);
+      const target = nextPath && nextPath !== "/" ? nextPath : "/vela";
+      router.replace(target);
+      router.refresh();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Error inesperado";
-      setError(message);
+      setError(err instanceof Error ? err.message : "Error inesperado");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <main className="mx-auto w-full max-w-md space-y-6 px-6 py-16 md:px-10">
-        <header className="space-y-2 text-center">
-          <p className="text-sm font-semibold tracking-wide text-zinc-500">VELA Access</p>
-          <h1 className="text-3xl font-bold">Crear cuenta</h1>
-          <p className="text-sm text-zinc-600 dark:text-zinc-300">
-            Flujo separado de autenticación para {portalLabel}.
-          </p>
-        </header>
+    <div style={{ textAlign: "center" }}>
+      {/* Logotype */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", marginBottom: "1.5rem" }}>
+        <span style={{ color: "var(--accent)", fontSize: "1.2rem" }}>◈</span>
+        <span style={{ fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.1em", color: "var(--ink)" }}>VELA OS</span>
+      </div>
 
-        <form onSubmit={onSubmit} className="space-y-4 rounded-xl border border-zinc-200 p-5 dark:border-zinc-800">
-          <label className="block text-sm">
-            Nombre
+      <h1 style={{ fontSize: "1.75rem", fontWeight: 800, letterSpacing: "-0.03em", color: "var(--ink)", marginBottom: "0.5rem" }}>
+        Crear cuenta
+      </h1>
+      <p style={{ fontSize: "0.82rem", color: "var(--ink-3)", marginBottom: "2rem" }}>
+        {portal ? `Acceso a ${portal}` : "Comienza a operar tu startup"}
+      </p>
+
+      {/* Form card */}
+      <div style={{
+        background: "var(--surface)", border: "1px solid var(--border)",
+        borderRadius: "0.375rem", padding: "1.5rem", textAlign: "left",
+        display: "flex", flexDirection: "column", gap: "1rem",
+        marginBottom: "1.25rem",
+      }}>
+        <form onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+            <span style={{ fontSize: "0.72rem", fontWeight: 600, letterSpacing: "0.04em", color: "var(--ink-2)" }}>Nombre</span>
             <input
               type="text"
-              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
               required
+              autoComplete="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              style={{
+                background: "var(--surface-2)", border: "1px solid var(--border-mid)",
+                borderRadius: "0.25rem", padding: "0.6rem 0.75rem",
+                fontSize: "0.88rem", color: "var(--ink)", outline: "none", width: "100%",
+              }}
             />
           </label>
 
-          <label className="block text-sm">
-            Email
+          <label style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+            <span style={{ fontSize: "0.72rem", fontWeight: 600, letterSpacing: "0.04em", color: "var(--ink-2)" }}>Email</span>
             <input
               type="email"
-              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
               required
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              style={{
+                background: "var(--surface-2)", border: "1px solid var(--border-mid)",
+                borderRadius: "0.25rem", padding: "0.6rem 0.75rem",
+                fontSize: "0.88rem", color: "var(--ink)", outline: "none", width: "100%",
+              }}
             />
           </label>
 
-          <label className="block text-sm">
-            Contraseña
+          <label style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+            <span style={{ fontSize: "0.72rem", fontWeight: 600, letterSpacing: "0.04em", color: "var(--ink-2)" }}>Contraseña</span>
             <input
               type="password"
-              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
               required
+              autoComplete="new-password"
+              minLength={6}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              style={{
+                background: "var(--surface-2)", border: "1px solid var(--border-mid)",
+                borderRadius: "0.25rem", padding: "0.6rem 0.75rem",
+                fontSize: "0.88rem", color: "var(--ink)", outline: "none", width: "100%",
+              }}
             />
           </label>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-foreground px-4 py-2 text-sm font-semibold text-background"
+            style={{
+              background: loading ? "var(--surface-3)" : "var(--accent)",
+              color: "#fff", border: "none", borderRadius: "0.25rem",
+              padding: "0.7rem 1rem", fontSize: "0.88rem", fontWeight: 700,
+              cursor: loading ? "not-allowed" : "pointer", letterSpacing: "0.03em",
+              width: "100%", transition: "background 140ms ease",
+            }}
           >
-            {loading ? "Creando..." : "Crear cuenta"}
+            {loading ? "Creando cuenta..." : "Crear cuenta"}
           </button>
 
-          {error && <p className="text-sm text-red-500">{error}</p>}
-          {success && <p className="text-sm text-emerald-600">{success}</p>}
+          {error && (
+            <p style={{ fontSize: "0.78rem", color: "var(--red)", margin: 0 }}>{error}</p>
+          )}
         </form>
+      </div>
 
-        <div className="flex justify-center gap-3 text-sm">
-          <Link
-            href={(() => {
-              const query = new URLSearchParams();
-              if (nextPath) {
-                query.set("next", nextPath);
-              }
-              if (portal) {
-                query.set("portal", portal);
-              }
-
-              return query.toString() ? `/login?${query.toString()}` : "/login";
-            })()}
-            className="underline"
-          >
-            Ya tengo cuenta
-          </Link>
-        </div>
-      </main>
+      <p style={{ fontSize: "0.78rem", color: "var(--ink-3)" }}>
+        ¿Ya tienes cuenta?{" "}
+        <Link href={loginHref} style={{ color: "var(--accent)", textDecoration: "none", fontWeight: 600 }}>
+          Iniciar sesión
+        </Link>
+      </p>
     </div>
   );
 }
 
 export default function SignupPage() {
   return (
-    <Suspense fallback={<p className="px-6 py-16 text-center text-sm">Cargando registro...</p>}>
-      <SignupForm />
-    </Suspense>
+    <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", padding: "2rem" }}>
+      <div style={{ width: "100%", maxWidth: 400 }}>
+        <Suspense fallback={<p style={{ textAlign: "center", fontSize: "0.82rem", color: "var(--ink-3)" }}>Cargando...</p>}>
+          <SignupForm />
+        </Suspense>
+      </div>
+    </div>
   );
 }

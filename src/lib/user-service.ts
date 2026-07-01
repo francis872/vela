@@ -1,260 +1,170 @@
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { prisma } from "@/lib/prisma";
-import { UserRole } from "@/lib/auth";
-import { hashPassword, verifyPassword } from "@/lib/password";
+import type { SessionRole } from "@/lib/auth";
 
-export type AuthUser = {
-  id: string;
+type CreateUserInput = {
   email: string;
   name: string;
-  role: "admin" | "analista" | "operador";
-  active: boolean;
+  password: string;
+  role: SessionRole;
+  active?: boolean;
 };
 
-const DEFAULT_USERS: Array<{
+type UpdateUserInput = {
   id: string;
-  email: string;
-  name: string;
-  role: UserRole;
-  password: string;
-}> = [
+  email?: string;
+  name?: string;
+  role?: SessionRole;
+  password?: string;
+  active?: boolean;
+};
+
+function hashPassword(password: string) {
+  const salt = randomBytes(16).toString("hex");
+  const digest = createHash("sha256").update(`${salt}:${password}`).digest("hex");
+  return `${salt}:${digest}`;
+}
+
+function verifyPassword(password: string, stored: string) {
+  if (!stored.includes(":")) {
+    return stored === password;
+  }
+
+  const [salt, hash] = stored.split(":");
+  const digest = createHash("sha256").update(`${salt}:${password}`).digest("hex");
+
+  return timingSafeEqual(Buffer.from(hash), Buffer.from(digest));
+}
+
+function cleanUser<T extends { passwordHash?: string }>(user: T) {
+  const safe = { ...user } as T;
+  delete safe.passwordHash;
+  return safe;
+}
+
+export async function listUsers() {
+  const users = await prisma.user.findMany({
+    orderBy: { createdAt: "desc" },
+  });
+
+  return users.map((item) => cleanUser(item));
+}
+
+export async function createUser(input: CreateUserInput) {
+  const created = await prisma.user.create({
+    data: {
+      email: input.email.toLowerCase().trim(),
+      name: input.name.trim(),
+      role: input.role,
+      passwordHash: hashPassword(input.password),
+      active: input.active ?? true,
+    },
+  });
+
+  return cleanUser(created);
+}
+
+export async function updateUser(input: UpdateUserInput) {
+  const updated = await prisma.user.update({
+    where: { id: input.id },
+    data: {
+      email: input.email?.toLowerCase().trim(),
+      name: input.name?.trim(),
+      role: input.role,
+      active: input.active,
+      passwordHash: input.password ? hashPassword(input.password) : undefined,
+    },
+  });
+
+  return cleanUser(updated);
+}
+
+export async function authenticateUser(email: string, password: string) {
+  const user = await prisma.user.findUnique({
+    where: { email: email.toLowerCase().trim() },
+  });
+
+  if (!user || !user.active) {
+    return null;
+  }
+
+  if (!verifyPassword(password, user.passwordHash)) {
+    return null;
+  }
+
+  return cleanUser(user);
+}
+
+export async function findUserByEmail(email: string) {
+  return prisma.user.findUnique({
+    where: { email: email.toLowerCase().trim() },
+  });
+}
+
+export async function setUserPassword(userId: string, password: string) {
+  return prisma.user.update({
+    where: { id: userId },
+    data: {
+      passwordHash: hashPassword(password),
+    },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      active: true,
+    },
+  });
+}
+
+const defaultUsers = [
   {
-    id: "default_admin",
     email: "admin@vela.local",
     name: "Admin VELA",
-    role: "admin",
+    role: "admin" as const,
     password: process.env.VELA_ADMIN_PASSWORD || "admin123",
   },
   {
-    id: "default_analista",
     email: "analista@vela.local",
     name: "Analista VELA",
-    role: "analista",
+    role: "analista" as const,
     password: process.env.VELA_ANALISTA_PASSWORD || "analista123",
   },
   {
-    id: "default_operador",
     email: "operador@vela.local",
     name: "Operador VELA",
-    role: "operador",
+    role: "operador" as const,
     password: process.env.VELA_OPERADOR_PASSWORD || "operador123",
   },
 ];
 
-function defaultEmails() {
-  return DEFAULT_USERS.map((item) => item.email);
-}
-
-function toAuthUser(user: {
-  id: string;
-  email: string;
-  name: string;
-  role: UserRole;
-  active: boolean;
-}): AuthUser {
-  return {
-    id: user.id,
-    email: user.email,
-    name: user.name,
-    role: user.role,
-    active: user.active,
-  };
-}
-
-function authenticateFromDefaults(email: string, password: string): AuthUser | null {
-  const normalized = email.trim().toLowerCase();
-  const found = DEFAULT_USERS.find((user) => user.email === normalized);
-
-  if (!found || found.password !== password) {
-    return null;
-  }
-
-  return {
-    id: found.id,
-    email: found.email,
-    name: found.name,
-    role: found.role,
-    active: true,
-  };
-}
-
 export async function ensureDefaultUsers() {
-  const total = await prisma.user.count();
+  for (const user of defaultUsers) {
+    const existing = await prisma.user.findUnique({ where: { email: user.email } });
 
-  if (total > 0) {
-    return;
+    if (!existing) {
+      await createUser(user);
+    }
   }
-
-  const data: Array<{
-    email: string;
-    name: string;
-    role: UserRole;
-    passwordHash: string;
-    active: boolean;
-  }> = [];
-
-  for (const user of DEFAULT_USERS) {
-    data.push({
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      passwordHash: await hashPassword(user.password),
-      active: true,
-    });
-  }
-
-  await prisma.user.createMany({ data });
 }
 
 export async function reseedDefaultUsers() {
-  await prisma.user.deleteMany({
-    where: {
-      email: {
-        in: defaultEmails(),
+  for (const user of defaultUsers) {
+    const existing = await prisma.user.findUnique({ where: { email: user.email } });
+
+    if (!existing) {
+      await createUser(user);
+      continue;
+    }
+
+    await prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        name: user.name,
+        role: user.role,
+        active: true,
+        passwordHash: hashPassword(user.password),
       },
-    },
-  });
-
-  const data: Array<{
-    email: string;
-    name: string;
-    role: UserRole;
-    passwordHash: string;
-    active: boolean;
-  }> = [];
-
-  for (const user of DEFAULT_USERS) {
-    data.push({
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      passwordHash: await hashPassword(user.password),
-      active: true,
     });
   }
-
-  await prisma.user.createMany({ data });
-}
-
-export async function authenticateUser(email: string, password: string) {
-  try {
-    await ensureDefaultUsers();
-
-    const normalized = email.trim().toLowerCase();
-    const user = await prisma.user.findUnique({ where: { email: normalized } });
-
-    if (!user || !user.active) {
-      return null;
-    }
-
-    const valid = await verifyPassword(password, user.passwordHash);
-
-    if (!valid) {
-      return null;
-    }
-
-    return toAuthUser(user);
-  } catch {
-    return authenticateFromDefaults(email, password);
-  }
-}
-
-export async function listUsers() {
-  await ensureDefaultUsers();
-
-  return prisma.user.findMany({
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      role: true,
-      active: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-  });
-}
-
-export async function createUser(input: {
-  email: string;
-  name: string;
-  role: UserRole;
-  password: string;
-  active?: boolean;
-}) {
-  const passwordHash = await hashPassword(input.password);
-
-  const user = await prisma.user.create({
-    data: {
-      email: input.email.trim().toLowerCase(),
-      name: input.name,
-      role: input.role,
-      passwordHash,
-      active: input.active ?? true,
-    },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      role: true,
-      active: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-  });
-
-  return user;
-}
-
-export async function updateUser(input: {
-  id: string;
-  email?: string;
-  name?: string;
-  role?: UserRole;
-  password?: string;
-  active?: boolean;
-}) {
-  const data: {
-    email?: string;
-    name?: string;
-    role?: UserRole;
-    passwordHash?: string;
-    active?: boolean;
-  } = {};
-
-  if (input.email !== undefined) {
-    data.email = input.email.trim().toLowerCase();
-  }
-
-  if (input.name !== undefined) {
-    data.name = input.name;
-  }
-
-  if (input.role !== undefined) {
-    data.role = input.role;
-  }
-
-  if (input.active !== undefined) {
-    data.active = input.active;
-  }
-
-  if (input.password && input.password.length > 0) {
-    data.passwordHash = await hashPassword(input.password);
-  }
-
-  const user = await prisma.user.update({
-    where: { id: input.id },
-    data,
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      role: true,
-      active: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-  });
-
-  return user;
 }

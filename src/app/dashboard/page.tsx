@@ -199,39 +199,45 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="vela-shell min-h-screen bg-background text-foreground">
       <main className="mx-auto w-full max-w-6xl space-y-8 px-6 py-10 md:px-10">
-        <header className="space-y-3">
-          <p className="text-sm font-semibold tracking-wide text-zinc-500">
-            Dashboard institucional
+        <header className="vela-reveal space-y-4 rounded-2xl border border-border p-6 md:p-8">
+          <p className="vela-pill">
+            Venture Intelligence Board
           </p>
-          <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
-            Control de portafolio VELA
+          <h1 className="text-3xl font-bold tracking-tight md:text-5xl">
+            Controla el portafolio con señales, no con intuición
           </h1>
+          <p className="text-sm vela-muted">
+            Este tablero traduce datos operativos en decisiones de acompañamiento para startups del ecosistema VELA.
+          </p>
           {user && (
-            <p className="text-sm text-zinc-600 dark:text-zinc-300">
+            <p className="text-sm vela-muted">
               Sesión: {user.name} · Rol {user.role}
             </p>
           )}
-          <div className="flex gap-3">
-            <Link href="/" className="text-sm font-medium underline">
+          <div className="flex flex-wrap gap-3">
+            <Link href="/" className="rounded-lg border border-border px-3 py-2 text-sm font-semibold">
               Volver al inicio
             </Link>
-            <Link href="/velaseed" className="text-sm font-medium underline">
+            <Link href="/velaseed" className="rounded-lg border border-border px-3 py-2 text-sm font-semibold">
               Ir a VELASEED
             </Link>
             <button
               type="button"
               onClick={logout}
-              className="text-sm font-medium underline"
+              className="rounded-lg border border-border px-3 py-2 text-sm font-semibold"
             >
               Cerrar sesión
             </button>
           </div>
         </header>
 
-        <section className="rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
-          <h2 className="text-lg font-semibold">Filtros</h2>
+        <section className="vela-reveal rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
+          <h2 className="text-lg font-semibold">Orquestación de filtros</h2>
+          <p className="mt-1 text-sm vela-muted">
+            Segmenta por clasificación y tiempo para detectar patrones de escalamiento y riesgo.
+          </p>
           <form onSubmit={applyFilters} className="mt-3 grid gap-3 md:grid-cols-4">
             <label className="text-sm">
               Clasificación
@@ -270,7 +276,7 @@ export default function DashboardPage() {
             <div className="flex items-end gap-3">
               <button
                 type="submit"
-                className="rounded-lg bg-foreground px-4 py-2 text-sm font-semibold text-background"
+                className="vela-accent-button px-4 py-2 text-sm"
                 disabled={loading}
               >
                 {loading ? "Aplicando..." : "Aplicar"}
@@ -294,11 +300,11 @@ export default function DashboardPage() {
           </form>
         </section>
 
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="vela-stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {metricas.map((metrica) => (
             <article
               key={metrica.label}
-              className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800"
+              className="vela-hover-lift rounded-xl border border-zinc-200 p-4 dark:border-zinc-800"
             >
               <p className="text-xs uppercase tracking-wide text-zinc-500">
                 {metrica.label}
@@ -311,8 +317,8 @@ export default function DashboardPage() {
           ))}
         </section>
 
-        <section className="rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
-          <h2 className="text-lg font-semibold">Distribución por clasificación</h2>
+        <section className="vela-reveal rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
+          <h2 className="text-lg font-semibold">Mapa de clasificación del pipeline</h2>
           {error ? (
             <p className="mt-3 text-sm text-red-500">{error}</p>
           ) : (
@@ -329,8 +335,8 @@ export default function DashboardPage() {
           )}
         </section>
 
-        <section className="rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
-          <h2 className="text-lg font-semibold">Actividad reciente</h2>
+        <section className="vela-reveal rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
+          <h2 className="text-lg font-semibold">Radar de actividad reciente</h2>
           <ul className="mt-3 space-y-2 text-sm text-zinc-700 dark:text-zinc-300">
             {(data?.recent ?? []).map((item) => (
               <li key={item.id}>
