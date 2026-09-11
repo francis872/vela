@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import OsNav from "@/components/os-nav";
 
 type SessionUser = {
   sub: string;
@@ -299,7 +300,7 @@ export default function ProfilePage() {
   const roleInfo = user ? (roleLabels[user.role] ?? roleLabels.operador) : roleLabels.operador;
 
   return (
-    <div className="min-h-screen bg-background px-4 py-8 text-foreground md:px-8">
+    <div className="os-layout"><OsNav userName={user?.name} userRole={user?.role} /><main className="os-main profile-workspace"><div className="min-h-screen bg-background px-4 py-8 text-foreground md:px-8">
       <div className="mx-auto grid w-full max-w-5xl gap-6">
         {/* ── Hero: identidad ── */}
         <section className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/70">
@@ -654,6 +655,6 @@ export default function ProfilePage() {
           </div>
         </section>
       </div>
-    </div>
+    </div></main></div>
   );
 }
