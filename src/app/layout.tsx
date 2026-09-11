@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Fraunces, Space_Grotesk } from "next/font/google";
-import GlobalHealthIndicator from "@/components/global-health-indicator";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -28,7 +27,6 @@ export default function RootLayout({
       <body
         className={`${spaceGrotesk.variable} ${fraunces.variable} antialiased`}
       >
-        <GlobalHealthIndicator />
         {children}
       </body>
     </html>
