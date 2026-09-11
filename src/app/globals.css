@@ -542,6 +542,27 @@ h1, h2, h3, h4 { letter-spacing: -0.025em; font-weight: 700; }
 .profile-workspace [class~="bg-gradient-to-r"] { background: linear-gradient(110deg, #11181d, #2d3f46); }
 .profile-workspace [class~="bg-zinc-800"] { background: #e6e2da; color: #3d4649; }
 
+/* Shared responsive contract. */
+.vela-page-frame { width: min(100%, 1440px); min-width: 0; margin: 0 auto; padding: clamp(1.25rem, 3vw, 3rem) clamp(1rem, 4vw, 4rem) calc(5rem + env(safe-area-inset-bottom)); overflow-wrap: anywhere; }
+.vela-page-frame > * { min-width: 0; }
+.profile-frame { display: grid; gap: 1.25rem; background: var(--bg-inverse); color: var(--text-inverse); }
+.profile-identity-hero { position: relative; }
+.profile-identity-grid { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 1.25rem; align-items: center; padding-top: 1.25rem; }
+.profile-avatar-wrap { display: grid; place-items: center; }
+.profile-avatar { width: clamp(5.5rem, 9vw, 7.5rem); aspect-ratio: 1; }
+.profile-identity-copy { min-width: 0; }
+.profile-kicker { display: block; color: #777c84; font-size: 0.58rem; font-weight: 800; letter-spacing: 0.18em; }
+.profile-identity-copy h1 { margin: 0.35rem 0 0.2rem; color: var(--text-inverse); font-family: var(--font-geist-mono), Georgia, serif; font-size: clamp(1.6rem, 3vw, 3rem); font-weight: 500; letter-spacing: -0.05em; line-height: 1.05; overflow-wrap: anywhere; }
+.profile-identity-copy p { margin: 0 0 0.55rem; color: #777c84; overflow-wrap: anywhere; }
+.profile-role { display: inline-flex; max-width: 100%; }
+.profile-hero-action { align-self: start; justify-self: end; }
+.profile-metrics { margin-top: 1.5rem; }
+.profile-workspace .profile-metrics > div { background: #f1eee7; border-color: #d8d5cd; }
+.profile-workspace .profile-metrics > div p:last-child { color: var(--text-inverse); }
+.profile-workspace > .vela-page-frame > section:not(.profile-identity-hero) { background: #faf9f5; border-color: #d8d5cd; border-radius: var(--radius-lg); color: var(--text-inverse); }
+.profile-workspace > .vela-page-frame button, .profile-workspace > .vela-page-frame a { max-width: 100%; }
+@media (max-width: 767px) { .vela-page-frame { padding-inline: 0.9rem; padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)); } .profile-identity-grid { grid-template-columns: 1fr; gap: 0.8rem; align-items: start; } .profile-avatar-wrap { justify-items: start; } .profile-hero-action { justify-self: start; } .profile-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
 @media (max-width: 800px) { .public-header { gap: 1rem; padding: 1rem; }.public-nav { display: none; }.public-brand img { width: 92px !important; }.public-actions { margin-left: auto; }.public-signin { display: none; }.public-hero { min-height: 660px; padding: 10rem 1.2rem 3rem; }.public-hero::after { right: -50%; width: 120%; opacity: 0.55; }.public-orbit { left: 52%; top: 57%; transform: scale(0.75) rotate(-18deg); }.public-section, .public-final { grid-template-columns: 1fr; gap: 2rem; padding: 3.5rem 1.2rem; }.public-why .public-outline { justify-self: start; }.public-capabilities { grid-template-columns: 1fr 1fr; padding: 0 1.2rem 3.5rem; }.public-loop { display: block; }.public-loop-track { grid-template-columns: 1fr; margin-top: 2rem; }.public-loop-node { min-height: auto; padding: 0.8rem 0 1.2rem 2.2rem; border-top: 0; border-left: 1px solid #596668; }.public-loop-node i { position: absolute; left: -0.75rem; top: 0.3rem; }.public-audience-strip { overflow: hidden; justify-content: flex-start; width: max-content; min-width: 100%; gap: 2rem; padding-left: 1.2rem; }.public-audience-grid { grid-template-columns: 1fr 1fr; }.public-footer { align-items: flex-start; flex-direction: column; }.public-footer > div:nth-child(2) { flex-wrap: wrap; }.access-shell { display: block; }.access-visual { min-height: 250px; padding: 1.5rem; }.access-visual-copy { margin-top: 4rem; }.access-visual-copy h2 { margin: 0.7rem 0; font-size: 2.6rem; }.access-visual-copy p { display: none; }.access-panel { min-height: 594px; padding: 1.5rem; }.access-panel-top { justify-content: space-between; }.access-form-panel { margin: 3rem auto 0; } }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }

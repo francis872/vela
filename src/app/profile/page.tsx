@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import OsNav from "@/components/os-nav";
+import PageFrame from "@/components/ui/page-frame";
 
 type SessionUser = {
   sub: string;
@@ -300,28 +301,29 @@ export default function ProfilePage() {
   const roleInfo = user ? (roleLabels[user.role] ?? roleLabels.operador) : roleLabels.operador;
 
   return (
-    <div className="os-layout"><OsNav userName={user?.name} userRole={user?.role} /><main className="os-main profile-workspace"><div className="min-h-screen bg-background px-4 py-8 text-foreground md:px-8">
-      <div className="mx-auto grid w-full max-w-5xl gap-6">
+    <div className="os-layout"><OsNav userName={user?.name} userRole={user?.role} /><main className="os-main profile-workspace"><PageFrame className="profile-frame">
         {/* ── Hero: identidad ── */}
-        <section className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/70">
+        <section className="profile-identity-hero overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/70">
           <div className="h-20 bg-gradient-to-r from-[var(--accent)]/25 via-zinc-800 to-transparent" />
           <div className="px-6 pb-6">
-            <div className="-mt-10 flex flex-wrap items-end justify-between gap-4">
-              <div className="flex items-end gap-4">
-                <div className="grid h-20 w-20 place-items-center rounded-2xl border-4 border-zinc-900 bg-[var(--accent)] text-2xl font-extrabold text-white shadow-lg">
+            <div className="profile-identity-grid">
+              <div className="profile-avatar-wrap">
+                <div className="profile-avatar grid place-items-center rounded-2xl border-4 border-zinc-900 bg-[var(--accent)] text-2xl font-extrabold text-white shadow-lg">
                   {user ? getInitials(user.name) : "V"}
                 </div>
-                <div className="pb-1">
-                  <h1 className="text-2xl font-bold tracking-tight">{user?.name ?? "Usuario"}</h1>
-                  <p className="text-sm text-zinc-400">{user?.email}</p>
-                </div>
               </div>
-              <span className={`rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wider ${roleInfo.classes}`}>
+              <div className="profile-identity-copy">
+                <span className="profile-kicker">BUILDER IDENTITY</span>
+                <h1>{user?.name ?? "Usuario"}</h1>
+                <p>{user?.email}</p>
+                <span className={`profile-role rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wider ${roleInfo.classes}`}>
                 {roleInfo.label}
-              </span>
+                </span>
+              </div>
+              <div className="profile-hero-action"><a href="#profile-editor" className="btn-ghost">Edit profile</a></div>
             </div>
 
-            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <div className="profile-metrics grid gap-3 sm:grid-cols-3">
               <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4">
                 <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500">Sesiones activas</p>
                 <p className="mt-1 text-2xl font-bold">{sessions.length}</p>
@@ -654,7 +656,6 @@ export default function ProfilePage() {
             ))}
           </div>
         </section>
-      </div>
-    </div></main></div>
+      </PageFrame></main></div>
   );
 }
