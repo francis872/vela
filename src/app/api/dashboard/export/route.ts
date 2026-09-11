@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
+import { requireProfileReady } from "@/lib/profile-gate";
 
 function escapeCsv(value: string | number | null) {
   if (value === null) {
@@ -21,6 +22,9 @@ export async function GET(request: Request) {
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
+
+  const profileGate = await requireProfileReady(auth.session.sub);
+  if (profileGate) return profileGate;
 
   try {
     const { searchParams } = new URL(request.url);

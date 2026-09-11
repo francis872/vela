@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { SESSION_COOKIE, verifySession } from '@/lib/auth';
+import { requireAuth } from '@/lib/api-auth';
 import { memoryScheduler, ensureSchedulerRunning } from '@/lib/memory-scheduler';
 
 /**
@@ -10,16 +9,8 @@ import { memoryScheduler, ensureSchedulerRunning } from '@/lib/memory-scheduler'
 
 export async function GET(request: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get(SESSION_COOKIE)?.value;
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const session = await verifySession(token).catch(() => null);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireAuth(request, ['admin']);
+    if (!auth.ok) return auth.response;
     
     // Ensure scheduler is running
     ensureSchedulerRunning();
@@ -59,16 +50,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get(SESSION_COOKIE)?.value;
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const session = await verifySession(token).catch(() => null);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireAuth(request, ['admin']);
+    if (!auth.ok) return auth.response;
     
     const body = await request.json();
     const { action } = body;

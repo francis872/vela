@@ -10,6 +10,8 @@ type ScoreInput = {
   yearsOperating?: number;
 };
 
+import { mean, standardDeviation } from "@/lib/statistics";
+
 const clamp = (value: number, min = 0, max = 100) => Math.min(max, Math.max(min, value));
 
 const stageBoost: Record<string, number> = {
@@ -28,6 +30,16 @@ export function computeScore(input: ScoreInput) {
     ? ((input.monthlyRevenue - input.monthlyCosts) / input.monthlyRevenue) * 100
     : 0;
 
+  const strategicSignals = [
+    input.potentialMargin,
+    input.digitalization,
+    input.replicability,
+    input.differentiation,
+  ];
+  const signalMean = mean(strategicSignals);
+  const signalStdDev = standardDeviation(strategicSignals);
+  const consistencyAdjustment = clamp((signalMean - signalStdDev) * 0.08, -6, 6);
+
   const weighted =
     input.potentialMargin * 0.22 +
     input.digitalization * 0.22 +
@@ -38,7 +50,16 @@ export function computeScore(input: ScoreInput) {
   const teamFactor = clamp((input.teamSize ?? 1) * 1.2, 0, 12);
   const trajectoryFactor = clamp((input.yearsOperating ?? 0) * 1.6, 0, 12);
 
-  const iev = Math.round(clamp(weighted * 0.8 + clamp(baseMargin) * 0.2 + stageFactor + teamFactor + trajectoryFactor));
+  const iev = Math.round(
+    clamp(
+      weighted * 0.76 +
+      clamp(baseMargin) * 0.24 +
+      stageFactor +
+      teamFactor +
+      trajectoryFactor +
+      consistencyAdjustment,
+    ),
+  );
 
   let classification = "Sustainability Candidate";
 

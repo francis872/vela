@@ -474,6 +474,11 @@ export default function VelaseedPage() {
                 <p>Riesgo de fracaso: {Math.round(resultadoApi.failureRisk)}%</p>
               </div>
             )}
+            {resultadoApi && (
+              <p className="text-[11px] leading-snug text-zinc-500">
+                Estimación heurística basada en reglas internas. No es una predicción estadística ni una garantía de resultados.
+              </p>
+            )}
             <p className="text-xs text-zinc-500">
               Atajo: usa Ctrl+S para guardar rápidamente en localStorage.
             </p>

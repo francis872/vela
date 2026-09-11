@@ -2,13 +2,28 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import {
+  AlertLevel,
+  DashboardAlert,
+  DashboardThresholds,
+  DEFAULT_DASHBOARD_THRESHOLDS,
+  getAlertStyles,
+  getClassificationLevel,
+  getHighIsBetterLevel,
+  getLowIsBetterLevel,
+} from "@/lib/dashboard-thresholds";
 
 type DashboardResponse = {
   metrics: {
     totalEvaluations: number;
     averageIEV: number;
     averageRevenue: number;
+    confidenceScore: number;
+    averageFailureRisk: number;
+    highRiskShare: number;
   };
+  thresholds: DashboardThresholds;
+  alerts: DashboardAlert[];
   byClassification: Array<{
     classification: string;
     _count: { _all: number };
@@ -49,10 +64,15 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<SessionUser | null>(null);
+  const [thresholdsDraft, setThresholdsDraft] = useState<DashboardThresholds | null>(null);
+  const [savingThresholds, setSavingThresholds] = useState(false);
+  const [thresholdMessage, setThresholdMessage] = useState<string | null>(null);
   const [classification, setClassification] = useState("all");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const thresholds = data?.thresholds ?? thresholdsDraft ?? DEFAULT_DASHBOARD_THRESHOLDS;
 
   const buildQueryParams = (params: FilterParams) => {
     const query = new URLSearchParams();
@@ -108,6 +128,7 @@ export default function DashboardPage() {
 
       const parsed: DashboardResponse = await response.json();
       setData(parsed);
+      setThresholdsDraft(parsed.thresholds);
     } catch {
       setError(
         "No se pudieron cargar métricas. Revisa DATABASE_URL y migración de Prisma.",
@@ -152,6 +173,64 @@ export default function DashboardPage() {
     await loadDashboard(filters);
   };
 
+  const updateDraft = (
+    section: keyof DashboardThresholds,
+    key: string,
+    value: number,
+  ) => {
+    setThresholdsDraft((current) => {
+      const base = current ?? DEFAULT_DASHBOARD_THRESHOLDS;
+
+      return {
+        ...base,
+        [section]: {
+          ...base[section],
+          [key]: value,
+        },
+      } as DashboardThresholds;
+    });
+  };
+
+  const saveThresholds = async (event: FormEvent) => {
+    event.preventDefault();
+
+    if (!thresholdsDraft) {
+      return;
+    }
+
+    setSavingThresholds(true);
+    setThresholdMessage(null);
+
+    try {
+      const response = await fetch("/api/dashboard/config", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(thresholdsDraft),
+      });
+
+      if (!response.ok) {
+        throw new Error("No se pudo guardar la configuración");
+      }
+
+      const parsed: { thresholds: DashboardThresholds } = await response.json();
+      setThresholdsDraft(parsed.thresholds);
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              thresholds: parsed.thresholds,
+            }
+          : current,
+      );
+      setThresholdMessage("Umbrales actualizados.");
+      await loadDashboard({ classification, startDate, endDate });
+    } catch {
+      setThresholdMessage("No se pudieron guardar los umbrales.");
+    } finally {
+      setSavingThresholds(false);
+    }
+  };
+
   const clearFilters = async () => {
     const filters: FilterParams = { classification: "all", startDate: "", endDate: "" };
     setClassification(filters.classification);
@@ -175,28 +254,116 @@ export default function DashboardPage() {
     window.location.href = endpoint;
   };
 
+  const averageIevLevel = data
+    ? getHighIsBetterLevel(data.metrics.averageIEV, thresholds.iev)
+    : "warning";
+  const confidenceLevel = data
+    ? getHighIsBetterLevel(data.metrics.confidenceScore, thresholds.confidence)
+    : "warning";
+  const averageRiskLevel = data
+    ? getLowIsBetterLevel(data.metrics.averageFailureRisk, thresholds.averageFailureRisk)
+    : "warning";
+  const highRiskShareLevel = data
+    ? getLowIsBetterLevel(data.metrics.highRiskShare, thresholds.highRiskShare)
+    : "warning";
+
   const metricas = [
     {
       label: "Evaluaciones registradas",
       value: data ? String(data.metrics.totalEvaluations) : "-",
       detalle: "Base Velaseed",
+      level: "healthy" as AlertLevel,
     },
     {
       label: "IEV promedio",
       value: data ? `${data.metrics.averageIEV}/100` : "-",
       detalle: "Scoring backend",
+      level: averageIevLevel,
     },
     {
       label: "Ingreso medio",
       value: data ? `$${data.metrics.averageRevenue}` : "-",
       detalle: "Ingresos mensuales promedio",
+      level: "healthy" as AlertLevel,
+    },
+    {
+      label: "Confianza del modelo",
+      value: data ? `${data.metrics.confidenceScore}/100` : "-",
+      detalle: "Calidad estadística del histórico",
+      level: confidenceLevel,
+    },
+    {
+      label: "Riesgo promedio",
+      value: data ? `${data.metrics.averageFailureRisk}%` : "-",
+      detalle: "Probabilidad media de falla",
+      level: averageRiskLevel,
+    },
+    {
+      label: "Cartera en alto riesgo",
+      value: data ? `${data.metrics.highRiskShare}%` : "-",
+      detalle: "Evaluaciones con riesgo >= 60%",
+      level: highRiskShareLevel,
     },
     {
       label: "Últimas evaluaciones",
       value: data ? String(data.recent.length) : "-",
       detalle: "Ventana de monitoreo",
+      level: "warning" as AlertLevel,
     },
   ];
+
+  const operationalSignals = [
+    {
+      title: "Confiabilidad analítica",
+      description:
+        confidenceLevel === "critical"
+          ? "El histórico todavía es débil o inestable; las decisiones deben revisarse con criterio humano."
+          : confidenceLevel === "warning"
+            ? "La base estadística es útil, pero todavía puede mejorar con más datos frescos."
+            : "La base estadística es suficientemente consistente para soportar decisiones operativas.",
+      level: confidenceLevel,
+    },
+    {
+      title: "Riesgo del portafolio",
+      description:
+        averageRiskLevel === "critical"
+          ? "El riesgo promedio del portafolio es alto y requiere intervención prioritaria."
+          : averageRiskLevel === "warning"
+            ? "Hay presión de riesgo relevante; conviene reforzar seguimiento y mitigación."
+            : "El riesgo promedio del portafolio se mantiene dentro de un rango controlado.",
+      level: averageRiskLevel,
+    },
+    {
+      title: "Concentración de casos críticos",
+      description:
+        highRiskShareLevel === "critical"
+          ? "La cartera acumula demasiados casos frágiles; hay señales de estrés sistémico."
+          : highRiskShareLevel === "warning"
+            ? "La proporción de casos en alto riesgo merece atención antes de que escale."
+            : "La exposición a casos críticos sigue contenida frente al total evaluado.",
+      level: highRiskShareLevel,
+    },
+  ];
+
+  const classificationItems = (data?.byClassification ?? []).map((item) => {
+    const level = getClassificationLevel(item.classification);
+    const share = data?.metrics.totalEvaluations
+      ? Math.round((item._count._all / data.metrics.totalEvaluations) * 100)
+      : 0;
+
+    return {
+      ...item,
+      level,
+      share,
+    };
+  });
+
+  const recentActivityItems = (data?.recent ?? []).map((item) => ({
+    ...item,
+    level: getHighIsBetterLevel(item.iev, thresholds.iev),
+  }));
+
+  const hasCriticalAlerts = (data?.alerts ?? []).some((alert) => alert.level === "critical");
 
   return (
     <div className="vela-shell min-h-screen bg-background text-foreground">
@@ -232,6 +399,44 @@ export default function DashboardPage() {
             </button>
           </div>
         </header>
+
+        {!!data?.alerts.length && (
+          <section className={`vela-reveal rounded-xl border p-6 ${hasCriticalAlerts ? "border-rose-200 bg-rose-50/80 dark:border-rose-900 dark:bg-rose-950/30" : "border-amber-200 bg-amber-50/80 dark:border-amber-900 dark:bg-amber-950/30"}`}>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">Alertas automáticas</h2>
+                <p className="mt-1 text-sm vela-muted">
+                  Se disparan automáticamente cuando una métrica cae en nivel crítico según los umbrales activos.
+                </p>
+              </div>
+              <span className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] ${hasCriticalAlerts ? "bg-rose-600 text-white" : "bg-amber-500 text-black"}`}>
+                {(data?.alerts ?? []).length} activas
+              </span>
+            </div>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              {(data?.alerts ?? []).map((alert) => {
+                const alertStyles = getAlertStyles(alert.level);
+
+                return (
+                  <article
+                    key={alert.id}
+                    className={`rounded-xl border p-4 ${alertStyles.card}`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-sm font-semibold">{alert.title}</h3>
+                      <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] ${alertStyles.badge}`}>
+                        {alertStyles.label}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-sm text-zinc-700 dark:text-zinc-300">
+                      {alert.detail}
+                    </p>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         <section className="vela-reveal rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
           <h2 className="text-lg font-semibold">Orquestación de filtros</h2>
@@ -300,52 +505,250 @@ export default function DashboardPage() {
           </form>
         </section>
 
-        <section className="vela-stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="vela-stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {metricas.map((metrica) => (
+            (() => {
+              const alertStyles = getAlertStyles(metrica.level);
+
+              return (
             <article
               key={metrica.label}
-              className="vela-hover-lift rounded-xl border border-zinc-200 p-4 dark:border-zinc-800"
+              className={`vela-hover-lift rounded-xl border p-4 ${alertStyles.card}`}
             >
-              <p className="text-xs uppercase tracking-wide text-zinc-500">
-                {metrica.label}
-              </p>
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-xs uppercase tracking-wide text-zinc-500">
+                  {metrica.label}
+                </p>
+                <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] ${alertStyles.badge}`}>
+                  {alertStyles.label}
+                </span>
+              </div>
               <p className="mt-2 text-2xl font-bold">{metrica.value}</p>
               <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
                 {metrica.detalle}
               </p>
             </article>
+              );
+            })()
           ))}
         </section>
+
+        <section className="vela-reveal rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold">Semáforo operativo</h2>
+              <p className="mt-1 text-sm vela-muted">
+                Umbrales configurados en el dashboard para interpretar confianza, calidad del score y presión de riesgo.
+              </p>
+            </div>
+            <div className="text-sm vela-muted">
+              IEV saludable desde {thresholds.iev.healthy} · Confianza saludable desde {thresholds.confidence.healthy}
+            </div>
+          </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-3">
+            {operationalSignals.map((signal) => {
+              const alertStyles = getAlertStyles(signal.level);
+
+              return (
+                <article
+                  key={signal.title}
+                  className={`rounded-xl border p-4 ${alertStyles.card}`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-sm font-semibold">{signal.title}</h3>
+                    <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] ${alertStyles.badge}`}>
+                      {alertStyles.label}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm text-zinc-700 dark:text-zinc-300">
+                    {signal.description}
+                  </p>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+
+        {user?.role === "admin" && thresholdsDraft && (
+          <section className="vela-reveal rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">Configuración persistente de umbrales</h2>
+                <p className="mt-1 text-sm vela-muted">
+                  Estos valores se guardan en base de datos y redefinen el semáforo sin tocar código.
+                </p>
+              </div>
+              {thresholdMessage && <p className="text-sm vela-muted">{thresholdMessage}</p>}
+            </div>
+            <form onSubmit={saveThresholds} className="mt-4 grid gap-4 md:grid-cols-2">
+              <label className="text-sm">
+                IEV saludable desde
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700"
+                  value={thresholdsDraft.iev.healthy}
+                  onChange={(event) => updateDraft("iev", "healthy", Number(event.target.value))}
+                />
+              </label>
+              <label className="text-sm">
+                IEV atención desde
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700"
+                  value={thresholdsDraft.iev.warning}
+                  onChange={(event) => updateDraft("iev", "warning", Number(event.target.value))}
+                />
+              </label>
+              <label className="text-sm">
+                Confianza saludable desde
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700"
+                  value={thresholdsDraft.confidence.healthy}
+                  onChange={(event) => updateDraft("confidence", "healthy", Number(event.target.value))}
+                />
+              </label>
+              <label className="text-sm">
+                Confianza atención desde
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700"
+                  value={thresholdsDraft.confidence.warning}
+                  onChange={(event) => updateDraft("confidence", "warning", Number(event.target.value))}
+                />
+              </label>
+              <label className="text-sm">
+                Riesgo promedio saludable hasta
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700"
+                  value={thresholdsDraft.averageFailureRisk.healthyMax}
+                  onChange={(event) => updateDraft("averageFailureRisk", "healthyMax", Number(event.target.value))}
+                />
+              </label>
+              <label className="text-sm">
+                Riesgo promedio atención hasta
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700"
+                  value={thresholdsDraft.averageFailureRisk.warningMax}
+                  onChange={(event) => updateDraft("averageFailureRisk", "warningMax", Number(event.target.value))}
+                />
+              </label>
+              <label className="text-sm">
+                Cartera en alto riesgo saludable hasta
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700"
+                  value={thresholdsDraft.highRiskShare.healthyMax}
+                  onChange={(event) => updateDraft("highRiskShare", "healthyMax", Number(event.target.value))}
+                />
+              </label>
+              <label className="text-sm">
+                Cartera en alto riesgo atención hasta
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700"
+                  value={thresholdsDraft.highRiskShare.warningMax}
+                  onChange={(event) => updateDraft("highRiskShare", "warningMax", Number(event.target.value))}
+                />
+              </label>
+              <div className="md:col-span-2 flex justify-end">
+                <button
+                  type="submit"
+                  className="vela-accent-button px-4 py-2 text-sm"
+                  disabled={savingThresholds}
+                >
+                  {savingThresholds ? "Guardando..." : "Guardar umbrales"}
+                </button>
+              </div>
+            </form>
+          </section>
+        )}
 
         <section className="vela-reveal rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
           <h2 className="text-lg font-semibold">Mapa de clasificación del pipeline</h2>
           {error ? (
             <p className="mt-3 text-sm text-red-500">{error}</p>
           ) : (
-            <ul className="mt-3 space-y-2 text-sm text-zinc-700 dark:text-zinc-300">
-              {(data?.byClassification ?? []).map((item) => (
-                <li key={item.classification}>
-                  • {item.classification}: {item._count._all}
-                </li>
-              ))}
-              {!data?.byClassification?.length && (
-                <li>• Aún no hay registros en base de datos.</li>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              {classificationItems.map((item) => {
+                const alertStyles = getAlertStyles(item.level);
+
+                return (
+                  <article
+                    key={item.classification}
+                    className={`rounded-xl border p-4 ${alertStyles.card}`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-sm font-semibold">{item.classification}</h3>
+                      <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] ${alertStyles.badge}`}>
+                        {alertStyles.label}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-2xl font-bold">{item._count._all}</p>
+                    <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">
+                      {item.share}% del pipeline filtrado
+                    </p>
+                  </article>
+                );
+              })}
+              {!classificationItems.length && (
+                <article className="rounded-xl border border-zinc-200 p-4 text-sm text-zinc-700 dark:border-zinc-800 dark:text-zinc-300">
+                  Aún no hay registros en base de datos.
+                </article>
               )}
-            </ul>
+            </div>
           )}
         </section>
 
         <section className="vela-reveal rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
           <h2 className="text-lg font-semibold">Radar de actividad reciente</h2>
-          <ul className="mt-3 space-y-2 text-sm text-zinc-700 dark:text-zinc-300">
-            {(data?.recent ?? []).map((item) => (
-              <li key={item.id}>
-                • {item.classification} · IEV {item.iev} ·{" "}
-                {new Date(item.createdAt).toLocaleString()}
-              </li>
-            ))}
-            {!data?.recent?.length && <li>• Sin actividad reciente.</li>}
-          </ul>
+          <div className="mt-4 space-y-3">
+            {recentActivityItems.map((item) => {
+              const alertStyles = getAlertStyles(item.level);
+
+              return (
+                <article
+                  key={item.id}
+                  className={`rounded-xl border p-4 ${alertStyles.card}`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold">{item.classification}</p>
+                      <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">
+                        IEV {item.iev} · {new Date(item.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] ${alertStyles.badge}`}>
+                      {alertStyles.label}
+                    </span>
+                  </div>
+                </article>
+              );
+            })}
+            {!recentActivityItems.length && (
+              <article className="rounded-xl border border-zinc-200 p-4 text-sm text-zinc-700 dark:border-zinc-800 dark:text-zinc-300">
+                Sin actividad reciente.
+              </article>
+            )}
+          </div>
         </section>
       </main>
     </div>

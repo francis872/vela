@@ -2,6 +2,7 @@
 
 import { useEffect, useState, FormEvent } from "react";
 import Link from "next/link";
+import type { CapitalReadinessResponse } from "@/lib/functional-contracts";
 
 type Session = { name: string; email: string; role: string };
 
@@ -32,6 +33,7 @@ const GATE_LABEL: Record<string, string> = {
 
 export default function CapitalPage({ session }: { session: Session }) {
   const [gates, setGates] = useState<Gate[]>([]);
+  const [readinessData, setReadinessData] = useState<CapitalReadinessResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -39,13 +41,27 @@ export default function CapitalPage({ session }: { session: Session }) {
   const [form, setForm] = useState({ name: "", stage: "Discovery", criteria: "" });
 
   async function load() {
-    setLoading(true);
-    const res = await fetch("/api/gates?limit=30");
-    if (res.ok) setGates(await res.json());
+    const [gatesRes, readinessRes] = await Promise.all([
+      fetch("/api/gates?limit=30"),
+      fetch("/api/capital/readiness"),
+    ]);
+    if (gatesRes.ok) setGates(await gatesRes.json());
+    if (readinessRes.ok) setReadinessData((await readinessRes.json()) as CapitalReadinessResponse);
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/gates?limit=30"),
+      fetch("/api/capital/readiness"),
+    ])
+      .then(async ([gatesRes, readinessRes]) => {
+        if (gatesRes.ok) setGates(await gatesRes.json());
+        if (readinessRes.ok) setReadinessData((await readinessRes.json()) as CapitalReadinessResponse);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
@@ -72,7 +88,7 @@ export default function CapitalPage({ session }: { session: Session }) {
   }
 
   const passed = gates.filter((g) => g.status === "passed").length;
-  const pct = gates.length ? Math.round((passed / gates.length) * 100) : 0;
+  const readiness = readinessData?.readiness;
   const canEdit = session.role !== "operador";
 
   const byStage = STAGE_ORDER.reduce((acc, s) => {
@@ -96,25 +112,58 @@ export default function CapitalPage({ session }: { session: Session }) {
         <div className="os-card-accent" style={{ display: "flex", alignItems: "center", gap: "2rem", flexWrap: "wrap" }}>
           <div>
             <div style={{ fontSize: "2.5rem", fontWeight: 800, letterSpacing: "-0.04em", color: "var(--ink)", lineHeight: 1 }}>
-              {pct}<span style={{ fontSize: "1.25rem", color: "var(--ink-3)", fontWeight: 600 }}>%</span>
+              {readiness === null || readiness === undefined ? "—" : readiness}
+              {readiness !== null && readiness !== undefined && <span style={{ fontSize: "1.25rem", color: "var(--ink-3)", fontWeight: 600 }}>%</span>}
             </div>
             <div style={{ fontSize: "0.8rem", color: "var(--ink-3)", marginTop: "0.25rem" }}>Capital readiness</div>
           </div>
           <div style={{ flex: 1, minWidth: 160 }}>
             <div className="os-progress" style={{ height: 8, marginBottom: "0.5rem" }}>
               <div
-                className={`os-progress-fill ${pct >= 70 ? "green" : pct >= 40 ? "amber" : ""}`}
-                style={{ width: `${pct}%` }}
+                className={`os-progress-fill ${readiness !== null && readiness !== undefined && readiness >= 70 ? "green" : readiness !== null && readiness !== undefined && readiness >= 40 ? "amber" : ""}`}
+                style={{ width: `${readiness ?? 0}%` }}
               />
             </div>
             <div style={{ display: "flex", gap: "1.5rem" }}>
-              <div style={{ fontSize: "0.78rem", color: "var(--ink-3)" }}><span style={{ color: "var(--green)", fontWeight: 700 }}>{passed}</span> superados</div>
+              <div style={{ fontSize: "0.78rem", color: "var(--ink-3)" }}><span style={{ color: "var(--green)", fontWeight: 700 }}>{passed} / {gates.length}</span> gates superados</div>
               <div style={{ fontSize: "0.78rem", color: "var(--ink-3)" }}><span style={{ color: "var(--red)", fontWeight: 700 }}>{gates.filter(g => g.status === "failed").length}</span> fallidos</div>
               <div style={{ fontSize: "0.78rem", color: "var(--ink-3)" }}><span style={{ fontWeight: 700 }}>{gates.filter(g => g.status === "pending").length}</span> pendientes</div>
             </div>
           </div>
           <Link href="/velaseed" className="btn-ghost" style={{ flexShrink: 0 }}>Evaluar empresa →</Link>
         </div>
+
+        {/* Evidence-based readiness (real data) */}
+        {readinessData && (
+          <div className="os-card" style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
+              <h3 style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--ink)" }}>Evidencia disponible</h3>
+              {readinessData.status === "INSUFFICIENT_DATA" && (
+                <span className="badge badge-amber">Datos insuficientes</span>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: "1.25rem", flexWrap: "wrap", fontSize: "0.8rem", color: "var(--ink-2)" }}>
+              <span><strong>{readinessData.evidence.signals.interviews}</strong> entrevistas</span>
+              <span><strong>{readinessData.evidence.signals.experiments}</strong> experimentos</span>
+              <span><strong>{readinessData.evidence.signals.metrics}</strong> métricas</span>
+              <span><strong>{readinessData.evidence.objectives.completed}</strong>/{readinessData.evidence.objectives.total} objetivos completados</span>
+              <span><strong>{readinessData.evidence.sprints.completed}</strong>/{readinessData.evidence.sprints.total} sprints completados</span>
+            </div>
+            <p style={{ fontSize: "0.78rem", color: "var(--ink-3)" }}>{readinessData.explanation}</p>
+            {readinessData.missing.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                {readinessData.missing.map((action) => (
+                  <div key={action.href + action.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", borderTop: "1px solid var(--border)", paddingTop: "0.5rem" }}>
+                    <span style={{ fontSize: "0.78rem", color: "var(--ink-3)", flex: 1, minWidth: 200 }}>{action.reason}</span>
+                    <Link href={action.href} className="btn-ghost" style={{ fontSize: "0.75rem", padding: "0.3rem 0.75rem", flexShrink: 0 }}>
+                      {action.label} →
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Create form */}
         {showForm && (

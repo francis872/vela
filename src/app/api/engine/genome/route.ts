@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { SESSION_COOKIE, verifySession } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { metricResult } from "@/lib/functional-contracts";
 
 export const dynamic = "force-dynamic";
 
@@ -16,13 +16,9 @@ export const dynamic = "force-dynamic";
  *   6. Team Momentum         — collaboration score + network + decision recency
  */
 export async function GET(req: NextRequest) {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE)?.value;
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const session = await verifySession(token).catch(() => null);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const uid = session.sub;
+  const auth = await requireAuth(req);
+  if (!auth.ok) return auth.response;
+  const uid = auth.session.sub;
 
   const [objectives, signals, sprints, founderScore, gates, decisions, connections] =
     await Promise.all([
@@ -183,15 +179,56 @@ export async function GET(req: NextRequest) {
     return "";
   }
 
+  const hasOperationalEvidence = objectives.length > 0 || sprints.length > 0 || signals.length > 0;
+  const metricResults = {
+    pmf: metricResult(pmf, signals.length > 0, {
+      label: "PMF Evidence",
+      explanation: "Heurística basada en cobertura, diversidad y recencia de señales; no es una probabilidad estadística validada.",
+      sampleSize: signals.length,
+    }),
+    risk: metricResult(deathRisk, hasOperationalEvidence, {
+      label: "Risk",
+      explanation: "Riesgo operativo calculado desde bloqueos, actividad y score de ejecución.",
+      sampleSize: objectives.length + sprints.length + signals.length,
+    }),
+    velocity: metricResult(velocity, sprints.length > 0 || decisions.length > 0, {
+      label: "Execution Velocity",
+      explanation: "Throughput de Sprints, items, score de ejecución y cadencia de decisiones.",
+      sampleSize: sprints.length + decisions.length,
+    }),
+    readiness: metricResult(readiness, hasOperationalEvidence, {
+      label: "Investment Readiness",
+      explanation: "Composición heurística de evidencia, ejecución, gates y riesgo.",
+      sampleSize: gates.length + objectives.length + signals.length,
+    }),
+    health: metricResult(health, objectives.length > 0 || allItems.length > 0, {
+      label: "Operational Health",
+      explanation: "Salud de objetivos, cobertura y cumplimiento de compromisos.",
+      sampleSize: objectives.length + allItems.length,
+    }),
+    momentum: metricResult(momentum, connections > 0 || decisions.length > 0 || score.collaboration > 0, {
+      label: "Team Momentum",
+      explanation: "Colaboración, conexiones y actividad reciente de decisiones.",
+      sampleSize: connections + decisions.length,
+    }),
+  };
+  const startupHealthIndexResult = metricResult(startupHealthIndex, hasOperationalEvidence, {
+    label: "Startup Health Index",
+    explanation: "Índice compuesto derivado de las métricas operativas disponibles.",
+    sampleSize: objectives.length + sprints.length + signals.length,
+  });
+
   return NextResponse.json({
-    startupHealthIndex,
+    startupHealthIndex: startupHealthIndexResult.value,
+    startupHealthIndexResult,
+    metricResults,
     indicators: [
-      { id: "pmf",       label: "PMF Probability",      value: pmf,       insight: insight("pmf", pmf) },
-      { id: "death",     label: "Death Risk",           value: deathRisk,  insight: insight("death", deathRisk), inverse: true },
-      { id: "velocity",  label: "Execution Velocity",   value: velocity,   insight: insight("velocity", velocity) },
-      { id: "readiness", label: "Investment Readiness", value: readiness,  insight: insight("readiness", readiness) },
-      { id: "health",    label: "Operational Health",   value: health,     insight: insight("health", health) },
-      { id: "momentum",  label: "Team Momentum",        value: momentum,   insight: insight("momentum", momentum) },
+      { id: "pmf",       label: "PMF Evidence",         value: metricResults.pmf.value,       insight: insight("pmf", pmf) },
+      { id: "death",     label: "Death Risk",           value: metricResults.risk.value,      insight: insight("death", deathRisk), inverse: true },
+      { id: "velocity",  label: "Execution Velocity",   value: metricResults.velocity.value,  insight: insight("velocity", velocity) },
+      { id: "readiness", label: "Investment Readiness", value: metricResults.readiness.value, insight: insight("readiness", readiness) },
+      { id: "health",    label: "Operational Health",   value: metricResults.health.value,    insight: insight("health", health) },
+      { id: "momentum",  label: "Team Momentum",        value: metricResults.momentum.value,  insight: insight("momentum", momentum) },
     ],
     meta: {
       totalSignals: signals.length,

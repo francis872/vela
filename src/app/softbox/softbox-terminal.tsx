@@ -6,8 +6,8 @@ import Link from "next/link";
 /* ── types ──────────────────────────────────────────────────────────────── */
 type Session = { name: string; role: string };
 type Genome = {
-  startupHealthIndex: number;
-  indicators: { id: string; label: string; value: number; insight: string; inverse?: boolean }[];
+  startupHealthIndex: number | null;
+  indicators: { id: string; label: string; value: number | null; insight: string; inverse?: boolean }[];
 };
 type Objective = { id: string; title: string; status: string; dueDate?: string };
 type Signal    = { id: string; type: string; title: string; createdAt: string };
@@ -25,7 +25,8 @@ const INSIGHT_CFG: Record<string, { color: string; icon: string }> = {
 };
 
 /* ── helpers ─────────────────────────────────────────────────────────────── */
-function mc(v: number, inv = false) {
+function mc(v: number | null | undefined, inv = false) {
+  if (v == null) return "var(--ink-3)";
   const e = inv ? 100 - v : v;
   if (e >= 70) return "var(--green)";
   if (e >= 45) return "var(--blue)";
@@ -48,6 +49,7 @@ export default function SoftboxTerminal({ session }: { session: Session }) {
   const [insights,   setInsights]   = useState<AiInsight[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [tick,       setTick]       = useState(false);
+  const [now]         = useState(() => Date.now());
 
   useEffect(() => {
     Promise.all([
@@ -73,20 +75,20 @@ export default function SoftboxTerminal({ session }: { session: Session }) {
   }, []);
 
   /* derived */
-  const shi   = genome?.startupHealthIndex ?? 0;
-  const pmf   = genome?.indicators.find(i => i.id === "pmf")?.value ?? 0;
-  const vel   = genome?.indicators.find(i => i.id === "velocity")?.value ?? 0;
-  const risk  = genome?.indicators.find(i => i.id === "death")?.value ?? 0;
-  const mom   = genome?.indicators.find(i => i.id === "momentum")?.value ?? 0;
-  const inv   = genome?.indicators.find(i => i.id === "investment_readiness")?.value ?? 0;
+  const shi   = genome?.startupHealthIndex;
+  const pmf   = genome?.indicators.find(i => i.id === "pmf")?.value;
+  const vel   = genome?.indicators.find(i => i.id === "velocity")?.value;
+  const risk  = genome?.indicators.find(i => i.id === "death")?.value;
+  const mom   = genome?.indicators.find(i => i.id === "momentum")?.value;
+  const inv   = genome?.indicators.find(i => i.id === "readiness")?.value;
 
   const done  = sprint?.items.filter(i => i.done).length ?? 0;
   const total = sprint?.items.length ?? 0;
   const pct   = total > 0 ? Math.round((done / total) * 100) : 0;
 
-  const phase = pmf >= 65 && vel >= 65 ? "SCALING"
-              : pmf >= 50              ? "BUILDING"
-              : pmf >= 30              ? "VALIDATING"
+  const phase = (pmf ?? 0) >= 65 && (vel ?? 0) >= 65 ? "SCALING"
+              : (pmf ?? 0) >= 50              ? "BUILDING"
+              : (pmf ?? 0) >= 30              ? "VALIDATING"
               :                          "SEARCHING";
   const phaseColor: Record<string, string> = {
     SCALING: "var(--green)", BUILDING: "var(--blue)",
@@ -128,12 +130,12 @@ export default function SoftboxTerminal({ session }: { session: Session }) {
         {!loading && genome && (
           <>
             {[
-              { l: "SHI",  v: String(shi),  c: mc(shi),       big: true },
-              { l: "PMF",  v: `${pmf}%`,    c: mc(pmf)               },
-              { l: "VEL",  v: `${vel}%`,    c: mc(vel)               },
-              { l: "MOM",  v: `${mom}%`,    c: mc(mom)               },
-              { l: "RISK", v: `${risk}%`,   c: mc(risk, true)        },
-              { l: "INV",  v: `${inv}%`,    c: mc(inv)               },
+              { l: "SHI",  v: shi == null ? "—" : String(shi),  c: mc(shi),       big: true },
+              { l: "PMF",  v: pmf == null ? "—" : `${pmf}%`,    c: mc(pmf)               },
+              { l: "VEL",  v: vel == null ? "—" : `${vel}%`,    c: mc(vel)               },
+              { l: "MOM",  v: mom == null ? "—" : `${mom}%`,    c: mc(mom)               },
+              { l: "RISK", v: risk == null ? "—" : `${risk}%`,   c: mc(risk, true)        },
+              { l: "INV",  v: inv == null ? "—" : `${inv}%`,    c: mc(inv)               },
             ].map(({ l, v, c, big }) => (
               <div key={l} style={{ display: "flex", alignItems: "baseline", gap: "0.2rem", marginRight: "1.1rem" }}>
                 <span style={{ fontSize: big ? "1rem" : "0.82rem", fontWeight: 900, color: c, fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>{v}</span>
@@ -189,19 +191,19 @@ export default function SoftboxTerminal({ session }: { session: Session }) {
                     color: mc(shi), fontVariantNumeric: "tabular-nums",
                     letterSpacing: "-0.05em",
                   }}>
-                    {shi}
+                    {shi == null ? "—" : shi}
                   </span>
                   <span style={{ fontSize: "1rem", color: "var(--ink-3)", fontWeight: 500 }}>/100</span>
                 </div>
                 <div style={{ height: 3, background: "var(--surface-2)", marginTop: "0.75rem", borderRadius: 2 }}>
                   <div style={{
-                    height: "100%", width: `${shi}%`,
+                    height: "100%", width: `${shi ?? 0}%`,
                     background: `linear-gradient(90deg, ${mc(shi)}, color-mix(in srgb, ${mc(shi)} 60%, transparent))`,
                     borderRadius: 2, transition: "width 0.8s ease",
                   }} />
                 </div>
                 <div style={{ marginTop: "0.4rem", fontSize: "0.6rem", color: "var(--ink-3)" }}>
-                  {shi >= 70 ? "Strong operational health" : shi >= 50 ? "Moderate health — attention needed" : "Critical — immediate action required"}
+                  {shi == null ? "Operational health data insufficient" : shi >= 70 ? "Strong operational health" : shi >= 50 ? "Moderate health — attention needed" : "Critical — immediate action required"}
                 </div>
               </>
             )}
@@ -216,13 +218,13 @@ export default function SoftboxTerminal({ session }: { session: Session }) {
               ))
             ) : genome?.indicators.map(ind => {
               const c   = mc(ind.value, ind.inverse);
-              const bar = ind.inverse ? 100 - ind.value : ind.value;
+              const bar = ind.value === null ? 0 : ind.inverse ? 100 - ind.value : ind.value;
               return (
                 <div key={ind.id} style={{ marginBottom: "0.6rem" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.22rem" }}>
                     <span style={{ fontSize: "0.6rem", color: "var(--ink-2)", letterSpacing: "0.03em" }}>{ind.label}</span>
                     <span style={{ fontSize: "0.82rem", fontWeight: 700, color: c, fontVariantNumeric: "tabular-nums" }}>
-                      {ind.value}<span style={{ fontSize: "0.56rem" }}>%</span>
+                      {ind.value === null ? "—" : ind.value}<span style={{ fontSize: "0.56rem" }}>{ind.value === null ? "" : "%"}</span>
                     </span>
                   </div>
                   <div style={{ height: 2, background: "var(--surface-2)" }}>
@@ -283,7 +285,7 @@ export default function SoftboxTerminal({ session }: { session: Session }) {
                   blocked: "var(--red)", completed: "var(--ink-3)",
                 };
                 const c = statusColors[obj.status] ?? "var(--ink-3)";
-                const dl = obj.dueDate ? Math.ceil((new Date(obj.dueDate).getTime() - Date.now()) / 86400000) : null;
+                const dl = obj.dueDate ? Math.ceil((new Date(obj.dueDate).getTime() - now) / 86400000) : null;
                 return (
                   <div key={obj.id} style={{
                     display: "grid", gridTemplateColumns: "18px 7px 1fr auto auto",

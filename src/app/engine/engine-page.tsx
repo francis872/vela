@@ -17,15 +17,33 @@ type SprintReview = {
 type GenomeIndicator = {
   id: string;
   label: string;
-  value: number;
+  value: number | null;
   insight: string;
   inverse?: boolean;
 };
 type Genome = {
-  startupHealthIndex: number;
+  startupHealthIndex: number | null;
   indicators: GenomeIndicator[];
   meta: Record<string, number>;
 };
+
+type Trajectory = {
+  trajectory: { status: string; factors: string[] };
+  executionRisk: { status: string; level: string | null; factors: string[] };
+  validationRisk: { status: string; level: string | null; factors: string[] };
+};
+
+const TRAJECTORY_LABELS: Record<string, string> = {
+  STRONG_POSITIVE: "Momentum fuerte",
+  POSITIVE: "Buen camino",
+  STABLE: "Estable",
+  AT_RISK: "En riesgo",
+  DECLINING: "Perdiendo momentum",
+  INSUFFICIENT_DATA: "Datos insuficientes",
+};
+
+const RISK_LABELS: Record<string, string> = { LOW: "bajo", MEDIUM: "medio", HIGH: "alto" };
+const RISK_BADGE: Record<string, string> = { LOW: "badge-green", MEDIUM: "badge-amber", HIGH: "badge-red" };
 
 const LEVEL_THRESHOLDS = [
   { min: 0,   max: 49,  label: "Early Builder", color: "var(--ink-3)" },
@@ -49,7 +67,8 @@ function shiColor(v: number) {
   return "var(--red)";
 }
 
-function genomeStatus(value: number, inverse = false) {
+function genomeStatus(value: number | null, inverse = false) {
+  if (value === null) return { label: "Datos insuficientes", color: "var(--ink-3)" };
   const v = inverse ? 100 - value : value;
   if (v >= 70) return { label: "Óptimo",    color: "var(--green)" };
   if (v >= 50) return { label: "Estable",   color: "var(--blue)" };
@@ -57,7 +76,8 @@ function genomeStatus(value: number, inverse = false) {
   return              { label: "Crítico",   color: "var(--red)" };
 }
 
-function genomeBarColor(value: number, inverse = false) {
+function genomeBarColor(value: number | null, inverse = false) {
+  if (value === null) return "var(--ink-3)";
   if (!inverse) {
     if (value >= 70) return "var(--green)";
     if (value >= 50) return "var(--blue)";
@@ -83,6 +103,7 @@ export default function ExecutionEngine() {
   const [commitInputs, setCommitInputs] = useState(["", "", ""]);
   const [saving, setSaving] = useState(false);
   const [genome, setGenome] = useState<Genome | null>(null);
+  const [trajectory, setTrajectory] = useState<Trajectory | null>(null);
   const [sprintReviews, setSprintReviews] = useState<Record<string, SprintReview>>({});
   const [reviewingId, setReviewingId] = useState<string | null>(null);
 
@@ -94,35 +115,29 @@ export default function ExecutionEngine() {
       fetch("/api/sprints").then((r) => r.json()),
       fetch("/api/score").then((r) => r.json()),
       fetch("/api/engine/genome").then((r) => r.json()),
-    ]).then(([s, sc, g]) => {
+      fetch("/api/engine/trajectory").then((r) => (r.ok ? r.json() : null)),
+    ]).then(([s, sc, g, t]) => {
       setSprints(s);
       setScore(sc);
       setGenome(g);
-      setLoading(false);
-    });
+      setTrajectory(t);
+    }).catch(() => setLoading(false));
   }, []);
 
   async function toggleItem(sprintId: string, itemId: string, done: boolean) {
-    await fetch("/api/sprints", {
+    const response = await fetch("/api/sprints", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sprintId, itemId, done }),
     });
-    setSprints((prev) =>
-      prev.map((sp) => {
-        if (sp.id !== sprintId) return sp;
-        const newItems = sp.items.map((it) => (it.id === itemId ? { ...it, done } : it));
-        const allDone = newItems.every((it) => it.done);
-        return { ...sp, items: newItems, status: allDone ? "completed" : sp.status };
-      })
-    );
-    if (done) {
-      const sprint = sprints.find((s) => s.id === sprintId);
-      if (sprint) {
-        const allDone = sprint.items.filter((i) => i.id !== itemId).every((i) => i.done);
-        if (allDone) setScore((s) => ({ ...s, execution: s.execution + 10 }));
-      }
-    }
+    if (!response.ok) return;
+
+    const [sprintsResponse, scoreResponse] = await Promise.all([
+      fetch("/api/sprints"),
+      fetch("/api/score"),
+    ]);
+    if (sprintsResponse.ok) setSprints(await sprintsResponse.json());
+    if (scoreResponse.ok) setScore(await scoreResponse.json());
   }
 
   async function createSprint() {
@@ -134,6 +149,7 @@ export default function ExecutionEngine() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title, weekStart, commitments: commits }),
     });
+    if (!res.ok) { setSaving(false); return; }
     const data = await res.json();
     setSprints((prev) => [data, ...prev]);
     setTitle(""); setCommitInputs(["", "", ""]); setCreating(false); setSaving(false);
@@ -191,12 +207,45 @@ export default function ExecutionEngine() {
             </div>
             <div style={{ textAlign: "right", flexShrink: 0, marginLeft: "1rem" }}>
               <div style={{ fontSize: "0.65rem", color: "var(--ink-3)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "0.15rem" }}>Startup Health Index</div>
-              <div style={{ fontSize: "2.6rem", fontWeight: 900, color: shiColor(genome.startupHealthIndex), lineHeight: 1 }}>
-                {genome.startupHealthIndex}
+              <div style={{ fontSize: "2.6rem", fontWeight: 900, color: shiColor(genome.startupHealthIndex ?? 0), lineHeight: 1 }}>
+                {genome.startupHealthIndex === null ? "—" : genome.startupHealthIndex}
               </div>
               <div style={{ fontSize: "0.72rem", color: "var(--ink-3)" }}>/ 100</div>
             </div>
           </div>
+
+          {/* Trajectory — baseline predictions over real data (rules-v1) */}
+          {trajectory && (
+            <div className="os-card" style={{ marginBottom: "1rem", padding: "1rem 1.5rem" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--ink-3)", marginBottom: "0.2rem" }}>
+                    Trayectoria
+                  </div>
+                  <div style={{ fontSize: "0.92rem", fontWeight: 700, color: "var(--ink)" }}>
+                    {TRAJECTORY_LABELS[trajectory.trajectory.status] ?? trajectory.trajectory.status}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                  {trajectory.executionRisk.status === "AVAILABLE" && (
+                    <span className={`badge ${RISK_BADGE[trajectory.executionRisk.level ?? "LOW"]}`}>
+                      Ejecución: {RISK_LABELS[trajectory.executionRisk.level ?? "LOW"]}
+                    </span>
+                  )}
+                  {trajectory.validationRisk.status === "AVAILABLE" && (
+                    <span className={`badge ${RISK_BADGE[trajectory.validationRisk.level ?? "LOW"]}`}>
+                      Validación: {RISK_LABELS[trajectory.validationRisk.level ?? "LOW"]}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <ul style={{ marginTop: "0.6rem", paddingLeft: "1.1rem", display: "grid", gap: "0.25rem" }}>
+                {trajectory.trajectory.factors.map((factor) => (
+                  <li key={factor} style={{ fontSize: "0.78rem", color: "var(--ink-2)" }}>{factor}</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {/* 6 indicators grid */}
           <div className="os-grid-3" style={{ gap: "0.75rem" }}>
@@ -210,7 +259,7 @@ export default function ExecutionEngine() {
                   </div>
                   <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: "0.55rem" }}>
                     <div style={{ fontSize: "1.9rem", fontWeight: 900, color: barColor, lineHeight: 1 }}>
-                      {ind.value}<span style={{ fontSize: "0.85rem", fontWeight: 600 }}>%</span>
+                      {ind.value === null ? "—" : ind.value}<span style={{ fontSize: "0.85rem", fontWeight: 600 }}>{ind.value === null ? "" : "%"}</span>
                     </div>
                     <span style={{
                       fontSize: "0.68rem", fontWeight: 700, color: status.color,
@@ -220,7 +269,7 @@ export default function ExecutionEngine() {
                     </span>
                   </div>
                   <div className="os-progress" style={{ height: 3, marginBottom: "0.6rem" }}>
-                    <div className="os-progress-fill" style={{ width: `${ind.value}%`, background: barColor, transition: "width 0.6s ease" }} />
+                    <div className="os-progress-fill" style={{ width: `${ind.value ?? 0}%`, background: barColor, transition: "width 0.6s ease" }} />
                   </div>
                   <div style={{ fontSize: "0.71rem", color: "var(--ink-3)", lineHeight: 1.4 }}>{ind.insight}</div>
                 </div>

@@ -15,7 +15,7 @@ type StartupCard = {
   trend: "up" | "down" | "flat"; change: number;
 };
 type MarketIndex = { id: string; name: string; count: number; avgSHI: number; change: number; trend: "up" | "down" | "flat" };
-type ExchangeData = { startups: StartupCard[]; indexes: MarketIndex[]; lastUpdated: string };
+type ExchangeData = { startups: StartupCard[]; indexes: MarketIndex[]; lastUpdated: string; demo?: boolean; demoNotice?: string };
 type AiInsight    = { type: string; title: string; body: string };
 
 /* ── helpers ─────────────────────────────────────────────────────────────── */
@@ -116,6 +116,19 @@ export default function InvestorSpace({ session }: { session: Session }) {
         <div style={{ display: "flex", alignItems: "baseline", gap: "0.4rem", marginRight: "1.5rem" }}>
           <span style={{ fontSize: "0.72rem", fontWeight: 900, letterSpacing: "0.14em", color: "var(--ink)" }}>INVESTOR SPACE</span>
           <span style={{ fontSize: "0.5rem", color: "var(--ink-3)", letterSpacing: "0.08em" }}>INSTITUTIONAL PORTFOLIO INTELLIGENCE</span>
+          {data?.demo && (
+            <span
+              title={data.demoNotice}
+              style={{
+                fontSize: "0.54rem", fontWeight: 800, letterSpacing: "0.14em",
+                color: "var(--amber)", border: "1px solid var(--amber)",
+                borderRadius: "999px", padding: "0.14rem 0.55rem",
+                flexShrink: 0, whiteSpace: "nowrap",
+              }}
+            >
+              DEMO
+            </span>
+          )}
         </div>
         <div style={{ width: 1, height: 22, background: "var(--border)", marginRight: "1.25rem", flexShrink: 0 }} />
 

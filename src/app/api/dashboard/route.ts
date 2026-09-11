@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
+import { getDashboardThresholds } from "@/lib/dashboard-config";
+import { buildDashboardAlerts } from "@/lib/dashboard-thresholds";
+import { computePortfolioHealthStats } from "@/lib/statistics";
+import { requireProfileReady } from "@/lib/profile-gate";
 
 export async function GET(request: Request) {
   const auth = await requireRole(request, ["admin", "analista"]);
@@ -8,6 +12,9 @@ export async function GET(request: Request) {
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
+
+  const profileGate = await requireProfileReady(auth.session.sub);
+  if (profileGate) return profileGate;
 
   try {
     const { searchParams } = new URL(request.url);
@@ -50,7 +57,7 @@ export async function GET(request: Request) {
       where.createdAt = createdAt;
     }
 
-    const [total, avg, recent] = await Promise.all([
+    const [total, avg, recent, samples, thresholds] = await Promise.all([
       prisma.evaluation.count({ where }),
       prisma.evaluation.aggregate({
         where,
@@ -70,6 +77,15 @@ export async function GET(request: Request) {
           createdAt: true,
         },
       }),
+      prisma.evaluation.findMany({
+        where,
+        select: {
+          iev: true,
+          failureRisk: true,
+          createdAt: true,
+        },
+      }),
+      getDashboardThresholds(),
     ]);
 
     const porClasificacion = await prisma.evaluation.groupBy({
@@ -78,12 +94,21 @@ export async function GET(request: Request) {
       _count: { _all: true },
     });
 
+    const health = computePortfolioHealthStats(samples);
+    const metrics = {
+      totalEvaluations: total,
+      averageIEV: Math.round(avg._avg.iev ?? 0),
+      averageRevenue: Math.round(avg._avg.monthlyRevenue ?? 0),
+      confidenceScore: health.confidenceScore,
+      averageFailureRisk: Math.round(health.averageFailureRisk),
+      highRiskShare: Math.round(health.highRiskShare),
+    };
+    const alerts = buildDashboardAlerts(metrics, thresholds);
+
     return NextResponse.json({
-      metrics: {
-        totalEvaluations: total,
-        averageIEV: Math.round(avg._avg.iev ?? 0),
-        averageRevenue: Math.round(avg._avg.monthlyRevenue ?? 0),
-      },
+      metrics,
+      thresholds,
+      alerts,
       byClassification: porClasificacion,
       recent,
     });

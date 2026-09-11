@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { SESSION_COOKIE, verifySession } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { analyzeGraph, GraphNode, GraphEdge } from "@/lib/graph";
 
@@ -8,11 +7,9 @@ export const dynamic = "force-dynamic";
 
 /** GET /api/objectives/graph — returns full graph + analysis */
 export async function GET(req: NextRequest) {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE)?.value;
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const session = await verifySession(token).catch(() => null);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (!auth.ok) return auth.response;
+  const session = auth.session;
 
   const [objectives, deps] = await Promise.all([
     prisma.objective.findMany({ where: { ownerId: session.sub }, orderBy: { priority: "asc" } }),
@@ -38,11 +35,9 @@ export async function GET(req: NextRequest) {
 
 /** POST /api/objectives/graph — add dependency edge */
 export async function POST(req: NextRequest) {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE)?.value;
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const session = await verifySession(token).catch(() => null);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (!auth.ok) return auth.response;
+  const session = auth.session;
 
   const { objectiveId, dependsOnId } = await req.json();
   if (!objectiveId || !dependsOnId) {
@@ -85,11 +80,9 @@ export async function POST(req: NextRequest) {
 
 /** DELETE /api/objectives/graph?objectiveId=X&dependsOnId=Y */
 export async function DELETE(req: NextRequest) {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE)?.value;
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const session = await verifySession(token).catch(() => null);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (!auth.ok) return auth.response;
+  const session = auth.session;
 
   const { searchParams } = new URL(req.url);
   const objectiveId = searchParams.get("objectiveId");

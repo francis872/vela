@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, FormEvent } from "react";
+import type { SignalType, ValidationCoverageResponse } from "@/lib/functional-contracts";
 
 type Session = { name: string; email: string; role: string };
 
@@ -11,6 +12,7 @@ type Signal = {
   result?: string | null;
   hypothesis?: string | null;
   learning?: string | null;
+  objectiveId?: string | null;
   ownerName: string;
   createdAt: string;
 };
@@ -30,6 +32,8 @@ type CoverageAnalysis = {
   coverageRatio: number;
   nextToValidate: string[];
 };
+
+type Objective = { id: string; title: string; status: string };
 
 const SIGNAL_TYPES = [
   { value: "experiment", label: "Experimento", icon: "⚗", desc: "Prueba de hipótesis con resultado medible", color: "var(--blue)" },
@@ -56,9 +60,10 @@ export default function ValidatePage({ session }: { session: Session }) {
   const [coverageNodes, setCoverageNodes] = useState<CoverageNode[]>([]);
   const [coverageAnalysis, setCoverageAnalysis] = useState<CoverageAnalysis | null>(null);
   const [coverageLoading, setCoverageLoading] = useState(true);
+  const [objectives, setObjectives] = useState<Objective[]>([]);
 
   const [form, setForm] = useState({
-    type: "experiment", title: "", result: "", hypothesis: "", learning: ""
+    type: "experiment" as SignalType, title: "", result: "", hypothesis: "", learning: "", objectiveId: ""
   });
 
   async function load() {
@@ -72,14 +77,21 @@ export default function ValidatePage({ session }: { session: Session }) {
     setCoverageLoading(true);
     const res = await fetch("/api/validate/coverage");
     if (res.ok) {
-      const data = await res.json();
+      const data = (await res.json()) as ValidationCoverageResponse;
       setCoverageNodes(data.nodes ?? []);
       setCoverageAnalysis(data.analysis ?? null);
     }
     setCoverageLoading(false);
   }
 
-  useEffect(() => { load(); loadCoverage(); }, []);
+  useEffect(() => {
+    void Promise.resolve().then(load);
+    void Promise.resolve().then(loadCoverage);
+    fetch("/api/objectives?limit=100")
+      .then((res) => (res.ok ? (res.json() as Promise<Objective[]>) : []))
+      .then(setObjectives)
+      .catch(() => setObjectives([]));
+  }, []);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -88,12 +100,13 @@ export default function ValidatePage({ session }: { session: Session }) {
     await fetch("/api/signals", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({ ...form, objectiveId: form.objectiveId || undefined }),
     });
-    setForm({ type: "experiment", title: "", result: "", hypothesis: "", learning: "" });
+    setForm({ type: "experiment", title: "", result: "", hypothesis: "", learning: "", objectiveId: "" });
     setShowForm(false);
     setSaving(false);
     await load();
+    await loadCoverage();
   }
 
   async function deleteSignal(id: string) {
@@ -232,7 +245,7 @@ export default function ValidatePage({ session }: { session: Session }) {
                   <button
                     key={t.value}
                     type="button"
-                    onClick={() => setForm({ ...form, type: t.value })}
+                    onClick={() => setForm({ ...form, type: t.value as SignalType })}
                     style={{
                       display: "flex", alignItems: "center", gap: "0.5rem",
                       padding: "0.5rem 0.875rem", borderRadius: "0.5rem",
@@ -248,6 +261,18 @@ export default function ValidatePage({ session }: { session: Session }) {
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
                 <input className="os-input" placeholder="¿Qué observaste o mediste?" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
+                <select
+                  className="os-input"
+                  value={form.objectiveId}
+                  onChange={(e) => setForm({ ...form, objectiveId: e.target.value })}
+                >
+                  <option value="">Sin objetivo relacionado</option>
+                  {objectives.map((objective) => (
+                    <option key={objective.id} value={objective.id}>
+                      {objective.title}
+                    </option>
+                  ))}
+                </select>
                 <input className="os-input" placeholder="Hipótesis (opcional)" value={form.hypothesis} onChange={(e) => setForm({ ...form, hypothesis: e.target.value })} />
                 <input className="os-input" placeholder="Resultado (opcional)" value={form.result} onChange={(e) => setForm({ ...form, result: e.target.value })} />
                 <textarea className="os-input os-textarea" placeholder="Aprendizaje clave (opcional)" value={form.learning} onChange={(e) => setForm({ ...form, learning: e.target.value })} rows={2} />
@@ -267,7 +292,11 @@ export default function ValidatePage({ session }: { session: Session }) {
           </div>
         ) : displayed.length === 0 ? (
           <div className="os-card" style={{ textAlign: "center", padding: "2.5rem" }}>
-            <p style={{ color: "var(--ink-3)", marginBottom: "0.75rem" }}>Todavía no hay señales {filter !== "all" ? `del tipo seleccionado` : "registradas"}.</p>
+            <p style={{ color: "var(--ink-3)", marginBottom: "0.75rem" }}>
+              {signals.length === 0
+                ? "Todavía no hay evidencia de validación. Crea tu primer experimento, entrevista, métrica o insight."
+                : `Todavía no hay señales ${filter !== "all" ? "del tipo seleccionado" : "registradas"}.`}
+            </p>
             <button onClick={() => setShowForm(true)} className="btn-primary">Registrar primera señal</button>
           </div>
         ) : (

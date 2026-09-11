@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth";
 import { touchAuthSession } from "@/lib/auth-session-service";
 import { sha256 } from "@/lib/security";
+import { prisma } from "@/lib/prisma";
 
 export async function GET(request: Request) {
   const auth = await requireRole(request, ["admin", "analista", "operador"]);
@@ -21,5 +22,17 @@ export async function GET(request: Request) {
     await touchAuthSession(sha256(decodeURIComponent(rawSession)));
   }
 
-  return NextResponse.json({ user: auth.session });
+  const record = await prisma.user.findUnique({
+    where: { id: auth.session.sub },
+    select: { status: true, emailVerifiedAt: true, mfaEnabled: true },
+  });
+
+  return NextResponse.json({
+    user: auth.session,
+    security: {
+      accountStatus: record?.status ?? "active",
+      emailVerified: Boolean(record?.emailVerifiedAt),
+      mfaEnabled: record?.mfaEnabled ?? false,
+    },
+  });
 }

@@ -13,6 +13,14 @@ enum UserRole {
   operador
 }
 
+enum AccountStatus {
+  pending_verification
+  active
+  suspended
+  locked
+  disabled
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -20,20 +28,40 @@ model User {
   role         UserRole
   passwordHash String
   active       Boolean  @default(true)
+  status       AccountStatus @default(active)
+  emailVerifiedAt DateTime?
+  mfaEnabled   Boolean  @default(false)
+  mfaSecret    String?
   age          Int?
   trajectory   String?
   contact      String?
   position     String?
   bio          String?
+  headline     String?
+  location     String?
+  availability String?
   profileReady Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  userProfile       UserProfile?
+  userSkills        UserSkill[]
+  followsFrom       Follow[]          @relation("FollowsFrom")
+  followsTo         Follow[]          @relation("FollowsTo")
+  connectionRequestsSent     ConnectionRequest[] @relation("ConnReqFrom")
+  connectionRequestsReceived ConnectionRequest[] @relation("ConnReqTo")
+  connectionsA      Connection[]      @relation("ConnA")
+  connectionsB      Connection[]      @relation("ConnB")
+  blocksInitiated   UserBlock[]       @relation("BlocksFrom")
+  blocksReceived    UserBlock[]       @relation("BlocksTo")
   quickActions      QuickActionExecution[]
   connectionsFrom   UserConnection[] @relation("ConnectionsFrom")
   connectionsTo     UserConnection[] @relation("ConnectionsTo")
   authSessions      AuthSession[]
   accessLogs        AccessLog[]
   passwordResets    PasswordResetToken[]
+  emailVerifications EmailVerificationToken[]
+  securityEvents    SecurityEvent[]
+  mfaRecoveryCodes  MfaRecoveryCode[]
   auditLogs         AuditLog[]
   venture           Venture?
   organizationUsers OrganizationUser[]
@@ -95,6 +123,148 @@ model PasswordResetToken {
   @@index([userId])
   @@index([expiresAt])
   @@index([usedAt])
+}
+
+model EmailVerificationToken {
+  id         String   @id @default(cuid())
+  userId     String
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([usedAt])
+}
+
+model SecurityEvent {
+  id        String   @id @default(cuid())
+  userId    String?
+  type      String
+  detail    String?
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model MfaRecoveryCode {
+  id        String   @id @default(cuid())
+  userId    String
+  codeHash  String   @unique
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([usedAt])
+}
+
+model UserProfile {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  headline     String?
+  summary      String?
+  location     String?
+  availability String? // available, open_to_collaborate, mentoring, busy
+  visibility   String   @default("connections") // public, connections, private
+  interests    String[] @default([])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([visibility])
+}
+
+model Skill {
+  id     String      @id @default(cuid())
+  name   String      @unique
+  users  UserSkill[]
+}
+
+model UserSkill {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skillId     String
+  skill       Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  proficiency String?  // beginner, intermediate, advanced, expert
+  verified    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, skillId])
+  @@index([userId])
+  @@index([skillId])
+}
+
+// ─── Social Graph ────────────────────────────────────────────────────────────
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  follower    User     @relation("FollowsFrom", fields: [followerId], references: [id], onDelete: Cascade)
+  followingId String
+  following   User     @relation("FollowsTo", fields: [followingId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+enum ConnectionRequestStatus {
+  pending
+  accepted
+  declined
+  cancelled
+  blocked
+}
+
+model ConnectionRequest {
+  id         String                  @id @default(cuid())
+  fromUserId String
+  fromUser   User                    @relation("ConnReqFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUserId   String
+  toUser     User                    @relation("ConnReqTo", fields: [toUserId], references: [id], onDelete: Cascade)
+  status     ConnectionRequestStatus @default(pending)
+  message    String?
+  createdAt  DateTime                @default(now())
+  respondedAt DateTime?
+
+  @@unique([fromUserId, toUserId])
+  @@index([toUserId, status])
+  @@index([fromUserId])
+}
+
+model Connection {
+  id        String   @id @default(cuid())
+  userAId   String
+  userA     User     @relation("ConnA", fields: [userAId], references: [id], onDelete: Cascade)
+  userBId   String
+  userB     User     @relation("ConnB", fields: [userBId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userAId, userBId])
+  @@index([userAId])
+  @@index([userBId])
+}
+
+model UserBlock {
+  id          String   @id @default(cuid())
+  blockerId   String
+  blocker     User     @relation("BlocksFrom", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId   String
+  blocked     User     @relation("BlocksTo", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+  @@index([blockedId])
 }
 
 model AuditLog {
@@ -208,6 +378,21 @@ model Evaluation {
   @@index([classification])
   @@index([companyStage])
   @@index([businessModel])
+}
+
+model DashboardThresholdConfig {
+  id                              String   @id @default(cuid())
+  key                             String   @unique @default("default")
+  ievHealthy                      Int      @default(70)
+  ievWarning                      Int      @default(50)
+  confidenceHealthy               Int      @default(75)
+  confidenceWarning               Int      @default(50)
+  averageFailureRiskHealthyMax    Int      @default(35)
+  averageFailureRiskWarningMax    Int      @default(55)
+  highRiskShareHealthyMax         Int      @default(20)
+  highRiskShareWarningMax         Int      @default(40)
+  createdAt                       DateTime @default(now())
+  updatedAt                       DateTime @updatedAt
 }
 
 model EcosystemContent {

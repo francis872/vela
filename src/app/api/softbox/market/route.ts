@@ -1,16 +1,11 @@
-import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { SESSION_COOKIE, verifySession } from "@/lib/auth";
+import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE)?.value;
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const session = await verifySession(token).catch(() => null);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
+export async function GET(req: NextRequest) {
+  const auth = await requireAuth(req);
+  if (!auth.ok) return auth.response;
   const startups = [
     {
       id: "arclight-ai",
@@ -173,5 +168,9 @@ export async function GET() {
     startups,
     indexes,
     lastUpdated: new Date().toISOString(),
+    // This board is a simulated market showcase; it does NOT use real venture data.
+    demo: true,
+    demoNotice:
+      "Datos de demostración: las startups, métricas e índices de este mercado son simulados.",
   });
 }

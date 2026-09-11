@@ -2,7 +2,7 @@
 import { redirect } from "next/navigation";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth";
 import OsNav from "@/components/os-nav";
-import CommandDashboard from "./command-dashboard";
+import HomeDashboard from "./home-dashboard";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +18,7 @@ export default async function CommandPage() {
     <div className="os-layout">
       <OsNav userName={session.name} userRole={session.role} />
       <main className="os-main">
-        <CommandDashboard session={{ name: session.name, email: session.email, role: session.role }} />
+        <HomeDashboard session={{ name: session.name, email: session.email, role: session.role }} />
       </main>
     </div>
   );

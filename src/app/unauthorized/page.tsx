@@ -27,9 +27,52 @@ export default function UnauthorizedPage() {
           </div>
         </div>
         <h1 style={{ fontSize: "2rem", fontWeight: 800, letterSpacing: "-0.04em", marginBottom: "0.75rem" }}>No tienes permiso para este módulo</h1>
-        <p style={{ fontSize: "0.95rem", color: "var(--ink-3)", lineHeight: 1.8, marginBottom: "1.75rem" }}>
+        <p style={{ fontSize: "0.95rem", color: "var(--ink-3)", lineHeight: 1.8, marginBottom: "1.25rem" }}>
           Tu sesión actual no está autorizada para ver esta área de VELA. Si crees que debería ser así, ponte en contacto con el equipo y vuelve a intentarlo.
         </p>
+        <div style={{ marginBottom: "1.5rem", padding: "1rem 1.1rem", border: "1px solid rgba(232,92,45,0.2)", borderRadius: "0.65rem", background: "rgba(232,92,45,0.06)" }}>
+          <p style={{ margin: "0 0 0.35rem", fontWeight: 700 }}>Solicitud de acceso o revisión de permisos</p>
+          <p style={{ margin: "0 0 0.85rem", fontSize: "0.92rem", color: "var(--ink-3)", lineHeight: 1.6 }}>
+            Si consideras que este acceso debería estar habilitado, puedes reservar una llamada breve con nuestro equipo o escribirnos directamente para revisar tu caso.
+          </p>
+          <div style={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: "0.75rem" }}>
+            <a
+              href="https://www.linkedin.com/company/vela-ai/"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "0.8rem 1rem",
+                borderRadius: "0.35rem",
+                background: "var(--accent)",
+                color: "#fff",
+                fontWeight: 700,
+                textDecoration: "none",
+              }}
+            >
+              Agendar llamada
+            </a>
+            <a
+              href="mailto:hola@vela.app?subject=Solicitud%20de%20acceso%20VELA"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "0.8rem 1rem",
+                borderRadius: "0.35rem",
+                background: "transparent",
+                border: "1px solid var(--border-mid)",
+                color: "var(--ink-2)",
+                fontWeight: 700,
+                textDecoration: "none",
+              }}
+            >
+              Escribir al equipo
+            </a>
+          </div>
+        </div>
         <div style={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: "0.75rem" }}>
           <Link
             href="/"

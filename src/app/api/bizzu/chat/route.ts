@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
-import { cookies } from "next/headers";
-import { SESSION_COOKIE, verifySession } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
 import { chatCompletionStream, hasAI } from "@/lib/ai";
 
 const STREAM_HEADERS = { "Content-Type": "text/plain; charset=utf-8", "X-Content-Type-Options": "nosniff" } as const;
@@ -79,11 +78,9 @@ Genera un **Análisis de Startup** con este formato exacto:
 - El análisis final solo se genera cuando tienes las 9 respuestas`;
 
 export async function POST(req: NextRequest) {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE)?.value;
-  if (!token) return new Response("Unauthorized", { status: 401 });
-  const session = await verifySession(token).catch(() => null);
-  if (!session) return new Response("Unauthorized", { status: 401 });
+  const auth = await requireAuth(req);
+  if (!auth.ok) return new Response("Unauthorized", { status: 401 });
+  const session = auth.session;
 
   const { messages } = await req.json();
   if (!Array.isArray(messages)) return new Response("messages required", { status: 400 });

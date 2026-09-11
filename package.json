@@ -12,6 +12,7 @@
     "start": "next start",
     "postinstall": "prisma generate",
     "lint": "eslint",
+    "test:phase-a": "tsc --target ES2022 --module commonjs --moduleResolution node --outDir .phase-a-tests --esModuleInterop --skipLibCheck tests/phase-a-contracts.test.ts src/lib/functional-contracts.ts && node --test .phase-a-tests/tests/phase-a-contracts.test.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",

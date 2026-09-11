@@ -53,16 +53,14 @@ export default function NetworkPage({ session }: { session: Session }) {
 
   async function load() {
     setLoading(true);
-    const [tRes, dRes] = await Promise.all([
-      fetch("/api/threads?limit=50"),
-      fetch("/api/decisions"),
-    ]);
-    if (tRes.ok) setThreads(await tRes.json());
-    if (dRes.ok) setDecisions(await dRes.json());
-    setLoading(false);
+    try {
+      const [tRes, dRes] = await Promise.all([fetch("/api/threads?limit=50"), fetch("/api/decisions")]);
+      if (tRes.ok) setThreads(await tRes.json());
+      if (dRes.ok) setDecisions(await dRes.json());
+    } finally { setLoading(false); }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { void Promise.resolve().then(load); }, []);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();

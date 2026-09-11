@@ -19,6 +19,7 @@ type MarketIndex = {
 };
 type ExchangeData = {
   startups: StartupCard[]; indexes: MarketIndex[]; lastUpdated: string;
+  demo?: boolean; demoNotice?: string;
 };
 
 /* ── helpers ─────────────────────────────────────────────────────────────── */
@@ -85,6 +86,19 @@ export default function ExchangeBoard() {
         <span style={{ fontSize: "0.72rem", fontWeight: 900, letterSpacing: "0.14em", color: "var(--ink)", marginRight: "1.5rem" }}>
           EXCHANGE
         </span>
+        {data?.demo && (
+          <span
+            title={data.demoNotice}
+            style={{
+              fontSize: "0.54rem", fontWeight: 800, letterSpacing: "0.14em",
+              color: "var(--amber)", border: "1px solid var(--amber)",
+              borderRadius: "999px", padding: "0.14rem 0.55rem",
+              marginRight: "1.25rem", flexShrink: 0, whiteSpace: "nowrap",
+            }}
+          >
+            DEMO
+          </span>
+        )}
         <div style={{ width: 1, height: 22, background: "var(--border)", marginRight: "1.25rem", flexShrink: 0 }} />
 
         {/* Index tickers */}

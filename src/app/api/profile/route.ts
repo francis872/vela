@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { PROFILE_READY_COOKIE, requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getFallbackProfile, setFallbackProfile } from "@/lib/profile-store";
 
 const profileSchema = z.object({
   name: z.string().min(2),
@@ -13,6 +12,54 @@ const profileSchema = z.object({
   bio: z.string().max(2000),
 });
 
+const PROFILE_SELECT = {
+  name: true,
+  role: true,
+  age: true,
+  trajectory: true,
+  contact: true,
+  position: true,
+  bio: true,
+  profileReady: true,
+} as const;
+
+type ProfileRecord = {
+  name: string;
+  role: string;
+  age: number | null;
+  trajectory: string | null;
+  contact: string | null;
+  position: string | null;
+  bio: string | null;
+  profileReady: boolean;
+};
+
+function toProfile(user: ProfileRecord, emailFallback: string) {
+  return {
+    name: user.name,
+    age: user.age,
+    trajectory: user.trajectory ?? "",
+    contact: user.contact ?? emailFallback,
+    position: user.position ?? "",
+    bio: user.bio ?? "",
+    role: user.role,
+    profileReady: user.profileReady,
+  };
+}
+
+function profileCookie(response: NextResponse, ready: boolean) {
+  response.cookies.set({
+    name: PROFILE_READY_COOKIE,
+    value: ready ? "true" : "false",
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 7,
+  });
+  return response;
+}
+
 export async function GET(request: Request) {
   const auth = await requireRole(request, ["admin", "analista", "operador"]);
 
@@ -20,65 +67,17 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
-  try {
-    const user = await prisma.user.findUnique({
-      where: { id: auth.session.sub },
-      select: {
-        name: true,
-        role: true,
-      },
-    });
+  const user = await prisma.user.findUnique({
+    where: { id: auth.session.sub },
+    select: PROFILE_SELECT,
+  });
 
-    if (!user) {
-      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
-    }
-
-    const fallback = getFallbackProfile(auth.session.sub, {
-      name: user.name,
-      age: null,
-      trajectory: "",
-      contact: auth.session.email,
-      position: "",
-      bio: "",
-      role: user.role,
-      profileReady: false,
-    });
-
-    const response = NextResponse.json({ profile: fallback });
-    response.cookies.set({
-      name: PROFILE_READY_COOKIE,
-      value: fallback.profileReady ? "true" : "false",
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-    });
-    return response;
-  } catch {
-    const fallback = getFallbackProfile(auth.session.sub, {
-      name: auth.session.name,
-      age: null,
-      trajectory: "",
-      contact: auth.session.email,
-      position: "",
-      bio: "",
-      role: auth.session.role,
-      profileReady: false,
-    });
-
-    const response = NextResponse.json({ profile: fallback });
-    response.cookies.set({
-      name: PROFILE_READY_COOKIE,
-      value: fallback.profileReady ? "true" : "false",
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-    });
-    return response;
+  if (!user) {
+    return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
   }
+
+  const response = NextResponse.json({ profile: toProfile(user, auth.session.email) });
+  return profileCookie(response, user.profileReady);
 }
 
 export async function PUT(request: Request) {
@@ -98,52 +97,20 @@ export async function PUT(request: Request) {
     );
   }
 
-  try {
-
-    const updatedUser = await prisma.user.update({
-      where: { id: auth.session.sub },
-      data: {
-        name: parsed.data.name,
-      },
-      select: {
-        role: true,
-      },
-    });
-
-    const profile = setFallbackProfile(auth.session.sub, {
-      ...parsed.data,
-      role: updatedUser.role,
+  const updatedUser = await prisma.user.update({
+    where: { id: auth.session.sub },
+    data: {
+      name: parsed.data.name,
+      age: parsed.data.age,
+      trajectory: parsed.data.trajectory,
+      contact: parsed.data.contact,
+      position: parsed.data.position,
+      bio: parsed.data.bio,
       profileReady: true,
-    });
+    },
+    select: PROFILE_SELECT,
+  });
 
-    const response = NextResponse.json({ profile });
-    response.cookies.set({
-      name: PROFILE_READY_COOKIE,
-      value: "true",
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-    });
-    return response;
-  } catch {
-    const fallback = setFallbackProfile(auth.session.sub, {
-      ...parsed.data,
-      role: auth.session.role,
-      profileReady: true,
-    });
-
-    const response = NextResponse.json({ profile: fallback });
-    response.cookies.set({
-      name: PROFILE_READY_COOKIE,
-      value: "true",
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-    });
-    return response;
-  }
+  const response = NextResponse.json({ profile: toProfile(updatedUser, "") });
+  return profileCookie(response, true);
 }

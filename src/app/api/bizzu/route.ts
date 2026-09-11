@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { SESSION_COOKIE, verifySession } from '@/lib/auth';
+import { requireAuth } from '@/lib/api-auth';
 import { analyzeDecision, generateExecutionPlan, validateSprintProgress, calculateExecutionScore } from '@/lib/bizzu-service';
 import { ollamaStream } from '@/lib/ollama-engine';
 
@@ -29,16 +28,9 @@ async function* streamAnalysisChunks(prompt: string, userId: string) {
 
 export async function POST(request: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get(SESSION_COOKIE)?.value;
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const session = await verifySession(token).catch(() => null);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+    const session = auth.session;
     
     const body = await request.json();
     const { action, data, stream } = body;

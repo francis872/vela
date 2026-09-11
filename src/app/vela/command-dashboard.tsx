@@ -31,8 +31,8 @@ type Sprint = {
   items: { id: string; title: string; done: boolean }[];
 };
 
-type GenomeIndicator = { id: string; label: string; value: number; insight: string; inverse?: boolean };
-type Genome = { startupHealthIndex: number; indicators: GenomeIndicator[]; meta: Record<string, number> };
+type GenomeIndicator = { id: string; label: string; value: number | null; insight: string; inverse?: boolean };
+type Genome = { startupHealthIndex: number | null; indicators: GenomeIndicator[]; meta: Record<string, number> };
 type AiInsight = { type: string; title: string; body: string };
 
 /* ─────────────────────────── constants ───────────────────────────────── */
@@ -75,7 +75,8 @@ function computePhase(genome: Genome | null): string {
   return "SEARCHING";
 }
 
-function metricColor(value: number, inverse = false) {
+function metricColor(value: number | null, inverse = false) {
+  if (value === null) return "var(--ink-3)";
   const v = inverse ? 100 - value : value;
   if (v >= 70) return "var(--green)";
   if (v >= 45) return "var(--amber)";
@@ -95,7 +96,7 @@ function timeAgo(iso: string) {
 function computeMission(genome: Genome | null, objectives: Objective[]): string {
   if (!genome) return "Analizando estado operacional...";
   const { indicators } = genome;
-  const get = (id: string) => indicators.find(i => i.id === id)?.value ?? 50;
+  const get = (id: string) => indicators.find(i => i.id === id)?.value ?? 0;
 
   const blocked = objectives.filter(o => o.status === "blocked");
   if (blocked.length > 0)
@@ -133,6 +134,7 @@ export default function CommandDashboard({ session }: { session: Session }) {
   const [loading, setLoading]           = useState(true);
   const [insightsLoading, setInsightsLoading] = useState(true);
   const [tick, setTick]                 = useState(false);
+  const [now]                           = useState(() => Date.now());
 
   useEffect(() => {
     Promise.all([
@@ -158,7 +160,7 @@ export default function CommandDashboard({ session }: { session: Session }) {
   }, []);
 
   /* ── derived ── */
-  const shi           = genome?.startupHealthIndex ?? 0;
+  const shi           = genome?.startupHealthIndex;
   const pmfInd        = genome?.indicators.find(i => i.id === "pmf");
   const velInd        = genome?.indicators.find(i => i.id === "velocity");
   const riskInd       = genome?.indicators.find(i => i.id === "death");
@@ -200,12 +202,12 @@ export default function CommandDashboard({ session }: { session: Session }) {
 
         {!loading && genome ? (
           <>
-            <Metric label="SHI"  value={String(shi)}           color={shiColor(shi)}                  size="lg" />
+            <Metric label="SHI"  value={shi === null || shi === undefined ? "—" : String(shi)} color={shiColor(shi ?? 0)} size="lg" />
             <div style={{ width: 1, height: 22, background: "var(--border)", margin: "0 1.25rem" }} />
-            {pmfInd  && <Metric label="PMF"  value={`${pmfInd.value}%`}  color={metricColor(pmfInd.value)} />}
-            {velInd  && <Metric label="VEL"  value={`${velInd.value}%`}  color={metricColor(velInd.value)} />}
-            {momInd  && <Metric label="MOM"  value={`${momInd.value}%`}  color={metricColor(momInd.value)} />}
-            {riskInd && <Metric label="RISK" value={`${riskInd.value}%`} color={metricColor(riskInd.value, true)} />}
+            {pmfInd  && <Metric label="PMF"  value={pmfInd.value === null ? "—" : `${pmfInd.value}%`}  color={metricColor(pmfInd.value)} />}
+            {velInd  && <Metric label="VEL"  value={velInd.value === null ? "—" : `${velInd.value}%`}  color={metricColor(velInd.value)} />}
+            {momInd  && <Metric label="MOM"  value={momInd.value === null ? "—" : `${momInd.value}%`}  color={metricColor(momInd.value)} />}
+            {riskInd && <Metric label="RISK" value={riskInd.value === null ? "—" : `${riskInd.value}%`} color={metricColor(riskInd.value, true)} />}
             <div style={{ width: 1, height: 22, background: "var(--border)", margin: "0 1.25rem" }} />
             <span style={LBL}>PHASE&nbsp;</span>
             <span style={{ fontSize: "0.65rem", fontWeight: 800, letterSpacing: "0.08em", color: "var(--accent)" }}>{phase}</span>
@@ -284,7 +286,7 @@ export default function CommandDashboard({ session }: { session: Session }) {
                   const color    = STATUS_STYLE[obj.status]?.color ?? "var(--ink-3)";
                   const label    = STATUS_STYLE[obj.status]?.label ?? "";
                   const daysLeft = obj.dueDate
-                    ? Math.ceil((new Date(obj.dueDate).getTime() - Date.now()) / 86400000)
+                    ? Math.ceil((new Date(obj.dueDate).getTime() - now) / 86400000)
                     : null;
                   return (
                     <div key={obj.id} style={{
@@ -331,7 +333,7 @@ export default function CommandDashboard({ session }: { session: Session }) {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
                 {genome.indicators.map((ind, idx) => {
                   const color  = metricColor(ind.value, ind.inverse);
-                  const barPct = ind.inverse ? 100 - ind.value : ind.value;
+                  const barPct = ind.value === null ? 0 : ind.inverse ? 100 - ind.value : ind.value;
                   const isOdd  = idx % 2 === 1;
                   const isLast = idx >= genome.indicators.length - 2;
                   return (
@@ -345,7 +347,7 @@ export default function CommandDashboard({ session }: { session: Session }) {
                           {ind.label}
                         </span>
                         <span style={{ fontSize: "1.05rem", fontWeight: 900, color, fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>
-                          {ind.value}<span style={{ fontSize: "0.52rem" }}>%</span>
+                          {ind.value === null ? "—" : ind.value}<span style={{ fontSize: "0.52rem" }}>{ind.value === null ? "" : "%"}</span>
                         </span>
                       </div>
                       <div style={{ height: 2, background: "var(--surface-2)" }}>
@@ -371,7 +373,7 @@ export default function CommandDashboard({ session }: { session: Session }) {
             ) : !sprint ? (
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.3rem 0" }}>
                 <span style={{ fontSize: "0.8rem", color: "var(--ink-3)" }}>Sin sprint activo esta semana</span>
-                <Link href="/engine" className="btn-primary" style={{ fontSize: "0.72rem", padding: "0.3rem 0.75rem" }}>Planear \u2192</Link>
+                <Link href="/engine" className="btn-primary" style={{ fontSize: "0.72rem", padding: "0.3rem 0.75rem" }}>Planear</Link>
               </div>
             ) : (
               <div>

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { computeScore } from "@/lib/scoring";
 import { requireRole } from "@/lib/auth";
+import { requireProfileReady } from "@/lib/profile-gate";
 
 const evaluationSchema = z.object({
   companyName: z.string().min(2).max(160).optional(),
@@ -28,6 +29,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
+  const profileGate = await requireProfileReady(auth.session.sub);
+  if (profileGate) return profileGate;
+
   try {
     const evaluations = await prisma.evaluation.findMany({
       orderBy: { createdAt: "desc" },
@@ -49,6 +53,9 @@ export async function POST(request: Request) {
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
+
+  const profileGate = await requireProfileReady(auth.session.sub);
+  if (profileGate) return profileGate;
 
   try {
     const payload = await request.json();

@@ -1,4 +1,4 @@
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import type { SessionRole } from "@/lib/auth";
 
@@ -8,6 +8,7 @@ type CreateUserInput = {
   password: string;
   role: SessionRole;
   active?: boolean;
+  status?: "pending_verification" | "active" | "suspended" | "locked" | "disabled";
 };
 
 type UpdateUserInput = {
@@ -19,21 +20,35 @@ type UpdateUserInput = {
   active?: boolean;
 };
 
+const SCRYPT_OPTIONS = { N: 16384, r: 8, p: 1 } as const;
+
 function hashPassword(password: string) {
   const salt = randomBytes(16).toString("hex");
-  const digest = createHash("sha256").update(`${salt}:${password}`).digest("hex");
-  return `${salt}:${digest}`;
+  const digest = scryptSync(password, salt, 64, SCRYPT_OPTIONS).toString("hex");
+  return `scrypt:${salt}:${digest}`;
 }
 
 function verifyPassword(password: string, stored: string) {
-  if (!stored.includes(":")) {
+  try {
+    // Current format: scrypt:<salt>:<hash>
+    if (stored.startsWith("scrypt:")) {
+      const [, salt, hash] = stored.split(":");
+      const digest = scryptSync(password, salt, 64, SCRYPT_OPTIONS);
+      return timingSafeEqual(Buffer.from(hash, "hex"), digest);
+    }
+
+    // Legacy format: <salt>:<sha256>
+    if (stored.includes(":")) {
+      const [salt, hash] = stored.split(":");
+      const digest = createHash("sha256").update(`${salt}:${password}`).digest("hex");
+      return timingSafeEqual(Buffer.from(hash, "hex"), Buffer.from(digest, "hex"));
+    }
+
+    // Legacy plaintext (early development only)
     return stored === password;
+  } catch {
+    return false;
   }
-
-  const [salt, hash] = stored.split(":");
-  const digest = createHash("sha256").update(`${salt}:${password}`).digest("hex");
-
-  return timingSafeEqual(Buffer.from(hash), Buffer.from(digest));
 }
 
 function cleanUser<T extends { passwordHash?: string }>(user: T) {
@@ -58,6 +73,7 @@ export async function createUser(input: CreateUserInput) {
       role: input.role,
       passwordHash: hashPassword(input.password),
       active: input.active ?? true,
+      status: input.status ?? "active",
     },
   });
 
@@ -85,6 +101,11 @@ export async function authenticateUser(email: string, password: string) {
   });
 
   if (!user || !user.active) {
+    return null;
+  }
+
+  // Suspended, locked or disabled accounts cannot authenticate.
+  if (user.status === "suspended" || user.status === "locked" || user.status === "disabled") {
     return null;
   }
 
@@ -117,29 +138,45 @@ export async function setUserPassword(userId: string, password: string) {
   });
 }
 
-const defaultUsers = [
+function seedPassword(envVar: string, devFallback: string): string | null {
+  // In production there is NO default password: it must come from the environment.
+  return process.env[envVar] ?? (process.env.NODE_ENV === "production" ? null : devFallback);
+}
+
+type DefaultUser = {
+  email: string;
+  name: string;
+  role: SessionRole;
+  password: string | null;
+};
+
+const defaultUsers: DefaultUser[] = [
   {
     email: "admin@vela.local",
     name: "Admin VELA",
-    role: "admin" as const,
-    password: process.env.VELA_ADMIN_PASSWORD || "admin123",
+    role: "admin",
+    password: seedPassword("VELA_ADMIN_PASSWORD", "admin123"),
   },
   {
     email: "analista@vela.local",
     name: "Analista VELA",
-    role: "analista" as const,
-    password: process.env.VELA_ANALISTA_PASSWORD || "analista123",
+    role: "analista",
+    password: seedPassword("VELA_ANALISTA_PASSWORD", "analista123"),
   },
   {
     email: "operador@vela.local",
     name: "Operador VELA",
-    role: "operador" as const,
-    password: process.env.VELA_OPERADOR_PASSWORD || "operador123",
+    role: "operador",
+    password: seedPassword("VELA_OPERADOR_PASSWORD", "operador123"),
   },
 ];
 
+const seedableUsers = defaultUsers.filter(
+  (user): user is DefaultUser & { password: string } => Boolean(user.password),
+);
+
 export async function ensureDefaultUsers() {
-  for (const user of defaultUsers) {
+  for (const user of seedableUsers) {
     const existing = await prisma.user.findUnique({ where: { email: user.email } });
 
     if (!existing) {
@@ -149,7 +186,7 @@ export async function ensureDefaultUsers() {
 }
 
 export async function reseedDefaultUsers() {
-  for (const user of defaultUsers) {
+  for (const user of seedableUsers) {
     const existing = await prisma.user.findUnique({ where: { email: user.email } });
 
     if (!existing) {

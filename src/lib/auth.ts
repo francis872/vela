@@ -11,10 +11,17 @@ export type SessionPayload = {
   email: string;
   name: string;
   role: SessionRole;
+  /** When true, the session is a partial login awaiting the MFA challenge. */
+  mfaPending?: boolean;
 };
 
+const secretValue = process.env.AUTH_SECRET;
+if (!secretValue && process.env.NODE_ENV === "production") {
+  // Fail fast: no fallback secret is acceptable in production.
+  throw new Error("AUTH_SECRET must be configured in production");
+}
 const secret = new TextEncoder().encode(
-  process.env.AUTH_SECRET || "vela-dev-secret-change-in-production",
+  secretValue ?? "vela-dev-secret-change-in-production",
 );
 
 export async function signSession(payload: SessionPayload) {

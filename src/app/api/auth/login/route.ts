@@ -6,6 +6,7 @@ import { checkRateLimit, consumeRateLimit, resetRateLimit } from "@/lib/rate-lim
 import { createAuthSession, writeAccessLog } from "@/lib/auth-session-service";
 import { writeAuditLog } from "@/lib/audit-service";
 import { getRequestMeta, sha256 } from "@/lib/security";
+import { prisma } from "@/lib/prisma";
 
 const loginSchema = z.object({
   email: z.email(),
@@ -63,6 +64,33 @@ export async function POST(request: Request) {
       });
 
       return NextResponse.json({ error: "Usuario o contraseña incorrectos" }, { status: 401 });
+    }
+
+    // If MFA is enabled, issue a partial session and require the challenge.
+    const account = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { mfaEnabled: true },
+    });
+    if (account?.mfaEnabled) {
+      const partialToken = await signSession({
+        sub: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        mfaPending: true,
+      });
+
+      const response = NextResponse.json({ mfaRequired: true }, { status: 200 });
+      response.cookies.set({
+        name: SESSION_COOKIE,
+        value: partialToken,
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: 60 * 10, // 10 minutes to complete the challenge
+      });
+      return response;
     }
 
     resetRateLimit(rlKey);

@@ -248,6 +248,9 @@ export default function AdminUsersPage() {
             <Link href="/admin/content" className="text-sm font-medium underline">
               Admin contenido
             </Link>
+            <Link href="/admin/waitlist" className="text-sm font-medium underline">
+              Waitlist
+            </Link>
             <Link href="/dashboard" className="text-sm font-medium underline">
               Ir al dashboard
             </Link>

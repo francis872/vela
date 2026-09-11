@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { SESSION_COOKIE, verifySession } from '@/lib/auth';
+import { requireAuth } from '@/lib/api-auth';
 
 /**
  * AI Streaming Endpoint
@@ -9,16 +8,9 @@ import { SESSION_COOKIE, verifySession } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get(SESSION_COOKIE)?.value;
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const session = await verifySession(token).catch(() => null);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+    const session = auth.session;
     
     const body = await request.json();
     const { prompt, module = 'default', topic = 'general', useMemory = true, maxTokens = 1024 } = body;

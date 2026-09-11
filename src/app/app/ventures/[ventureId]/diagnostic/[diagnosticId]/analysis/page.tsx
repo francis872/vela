@@ -3,15 +3,35 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 
+type DiagnosticAnalysis = {
+  maturityScore: number;
+  strengths: string[];
+  risks: string[];
+  validations?: string[];
+  recommendations?: string[];
+  days30Plan?: string | null;
+  days60Plan?: string | null;
+  days90Plan?: string | null;
+};
+
+type AnalysisPayload = {
+  diagnostic: {
+    id: string;
+    status: string;
+    venture?: { name?: string };
+    analysis: DiagnosticAnalysis | null;
+  };
+  analysis: DiagnosticAnalysis | null;
+};
+
 export default function AnalysisPage() {
   const router = useRouter();
   const params = useParams();
   const ventureId = params.ventureId as string;
   const diagnosticId = params.diagnosticId as string;
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{ authenticated: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [analysis, setAnalysis] = useState<any>(null);
-  const [downloadingPDF, setDownloadingPDF] = useState(false);
+  const [analysis, setAnalysis] = useState<AnalysisPayload | null>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -23,8 +43,8 @@ export default function AnalysisPage() {
           return;
         }
         if (response.ok) {
-          const { diagnostic } = await response.json();
-          setAnalysis(diagnostic.analysis);
+          const data = await response.json();
+          setAnalysis(data);
           setUser({ authenticated: true });
         }
       } catch (error) {
@@ -36,44 +56,38 @@ export default function AnalysisPage() {
     checkAuth();
   }, [router, ventureId, diagnosticId]);
 
-  const loadAnalysis = async () => {
-    try {
-      const response = await fetch(`/api/ventures/${ventureId}/diagnostics/${diagnosticId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setAnalysis(data);
-      }
-    } catch (error) {
-      console.error('Error loading analysis:', error);
-    }
-  };
-
-  const handleDownloadPDF = async () => {
-    setDownloadingPDF(true);
-    try {
-      const response = await fetch(
-        `/api/ventures/${ventureId}/diagnostics/${diagnosticId}/export`,
-        { method: 'POST' }
-      );
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `diagnostic-${diagnosticId}.pdf`;
-        a.click();
-      }
-    } catch (error) {
-      console.error('Error downloading PDF:', error);
-    } finally {
-      setDownloadingPDF(false);
-    }
-  };
-
   if (loading) return <div>Cargando...</div>;
-  if (!user || !analysis) return <div>No encontrado</div>;
+  if (!user || !analysis?.diagnostic) return <div>No encontrado</div>;
 
   const a = analysis.analysis;
+
+  if (!a) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: '2rem' }}>
+        <div style={{
+          maxWidth: '720px', margin: '4rem auto', background: 'var(--surface)',
+          border: '1px solid var(--border)', borderRadius: '12px', padding: '2rem',
+        }}>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--ink)', marginBottom: '0.75rem' }}>
+            Análisis en proceso
+          </h1>
+          <p style={{ color: 'var(--ink-2)', marginBottom: '1.5rem', lineHeight: 1.6 }}>
+            Tu diagnóstico fue registrado, pero el análisis de IA todavía no está disponible.
+            VELA no genera resultados simulados: cuando el servicio de IA responda, verás aquí tu análisis real.
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              padding: '0.6rem 1.25rem', borderRadius: '8px', background: 'var(--accent)',
+              color: 'white', border: 'none', fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -103,19 +117,20 @@ export default function AnalysisPage() {
             </p>
           </div>
           <button
-            onClick={handleDownloadPDF}
-            disabled={downloadingPDF}
+            disabled
+            title="La exportación PDF estará disponible próximamente"
             style={{
               padding: '0.75rem 1.5rem',
               borderRadius: '8px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
+              background: 'var(--surface)',
+              color: 'var(--ink-3)',
+              border: '1px solid var(--border)',
               fontWeight: 600,
-              cursor: downloadingPDF ? 'not-allowed' : 'pointer',
+              cursor: 'not-allowed',
+              opacity: 0.75,
             }}
           >
-            {downloadingPDF ? 'Descargando...' : '⬇ Descargar PDF'}
+            ⬇ PDF · próximamente
           </button>
         </div>
 

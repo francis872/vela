@@ -1,19 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
-import { SESSION_COOKIE, verifySession } from '@/lib/auth';
+import { requireAuth } from '@/lib/api-auth';
+
+// AI provider is configured by environment; there is no fabricated fallback.
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+const OLLAMA_DIAGNOSTIC_MODEL =
+  process.env.OLLAMA_DIAGNOSTIC_MODEL || process.env.OLLAMA_MODEL || 'llama3';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ ventureId: string }> }) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get(SESSION_COOKIE)?.value;
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    const session = await verifySession(token).catch(() => null);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+    const session = auth.session;
 
     const { ventureId } = await params;
     const data = await request.json();
@@ -41,11 +39,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       },
     });
 
-    // Generate AI analysis (using Ollama)
+    // Generate AI analysis (Ollama). If the provider is unavailable, the
+    // diagnostic stays in 'submitted' — VELA never invents an analysis.
     try {
       const analysisResponse = await generateAIAnalysis(venture, data);
 
-      // Save analysis
       await prisma.diagnosticAnalysis.create({
         data: {
           diagnosticId: diagnostic.id,
@@ -60,19 +58,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         },
       });
 
-      // Update diagnostic status
       await prisma.diagnostic.update({
         where: { id: diagnostic.id },
         data: { status: 'analyzed' },
       });
+
+      return NextResponse.json(
+        { diagnosticId: diagnostic.id, analysisStatus: 'ready' },
+        { status: 201 },
+      );
     } catch (aiError) {
       console.error('AI analysis error:', aiError);
-      // Continue anyway - analysis can be generated later
+      return NextResponse.json(
+        { diagnosticId: diagnostic.id, analysisStatus: 'pending' },
+        { status: 201 },
+      );
     }
-
-    return NextResponse.json({
-      diagnosticId: diagnostic.id,
-    });
   } catch (error) {
     console.error('Diagnostic error:', error);
     return NextResponse.json(
@@ -82,8 +83,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 }
 
-async function generateAIAnalysis(venture: any, diagnosticData: any) {
-  // Prepare prompt for Ollama
+type VentureInfo = {
+  name: string;
+  sector: string;
+  stage: string;
+};
+
+type DiagnosticInput = {
+  problem?: string;
+  targetCustomers?: string;
+  businessModel?: string;
+  marketing?: string;
+  financials?: string;
+  organization?: string;
+};
+
+async function generateAIAnalysis(venture: VentureInfo, diagnosticData: DiagnosticInput) {
   const prompt = `
 Análisis de Emprendimiento - VELA
 
@@ -124,82 +139,28 @@ Por favor proporciona un análisis estructurado que incluya:
 Responde en formato JSON válido.
 `;
 
-  try {
-    const ollamaResponse = await fetch('http://localhost:11434/api/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'llama2',
-        prompt,
-        stream: false,
-      }),
-    });
+  const ollamaResponse = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: OLLAMA_DIAGNOSTIC_MODEL,
+      prompt,
+      stream: false,
+    }),
+  });
 
-    if (!ollamaResponse.ok) {
-      throw new Error('Ollama error');
-    }
-
-    const responseData = await ollamaResponse.json();
-    const analysisText = responseData.response;
-
-    // Parse the response (simple extraction)
-    const analysis = parseAnalysis(analysisText);
-
-    return analysis;
-  } catch (error) {
-    console.error('Ollama connection error:', error);
-    
-    // Return mock analysis for development
-    return getMockAnalysis(venture, diagnosticData);
+  if (!ollamaResponse.ok) {
+    throw new Error(`Ollama error: ${ollamaResponse.status}`);
   }
+
+  const responseData = await ollamaResponse.json();
+  return parseAnalysis(responseData.response);
 }
 
 function parseAnalysis(text: string) {
-  // Simple parsing - in production would use more robust JSON extraction
-  try {
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
-    }
-  } catch (e) {
-    // Fallback to mock
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error('AI response did not contain valid JSON');
   }
-
-  return getMockAnalysis({}, {});
-}
-
-function getMockAnalysis(venture: any, diagnosticData: any) {
-  return {
-    maturityScore: 58,
-    strengths: [
-      'Problema claramente identificado y relevante para el mercado',
-      'Equipo con experiencia en el sector',
-      'Propuesta de valor diferenciadora',
-      'Primeros clientes validando la solución',
-    ],
-    risks: [
-      'Financiamiento limitado para escalar operaciones',
-      'Competencia creciente en el mercado',
-      'Dependencia de pocos clientes',
-      'Necesidad de fortalecer el equipo en áreas clave',
-    ],
-    validations: [
-      'Validar disposición de pago real con clientes',
-      'Medir costo de adquisición de clientes',
-      'Probar diferentes canales de distribución',
-      'Validar modelo de precios',
-    ],
-    recommendations: [
-      '1. Realizar 10 entrevistas con potenciales clientes en el próximo mes para validar demanda',
-      '2. Definir KPIs clave para medir progreso (churn, CAC, LTV)',
-      '3. Optimizar el onboarding para reducir fricción',
-      '4. Establecer alianzas con 2-3 partners estratégicos',
-      '5. Crear plan de marketing basado en datos de los clientes actuales',
-      '6. Proyectar financiero detallado a 12 meses',
-      '7. Documentar procesos clave del negocio',
-    ],
-    days30Plan: '• Semana 1-2: Validación intensiva con 5 potenciales clientes\n• Semana 2-3: Optimizar product basado en feedback\n• Semana 4: Definir métricas y KPIs\n• Objetivo: Tener 2-3 pilotos pagados iniciados',
-    days60Plan: '• Semana 5-6: Escalar ventas a 5-10 clientes\n• Semana 7-8: Establecer 2 alianzas estratégicas\n• Semana 9-10: Implementar feedback de clientes\n• Objetivo: Validar modelo de negocio rentable',
-    days90Plan: '• Semana 11-12: Planificación de siguiente fase de inversión\n• Semana 13: Documentar resultados y learnings\n• Semana 14-16: Preparar pitch para inversores/partners\n• Objetivo: Asegurar financiamiento o alianzas para crecer',
-  };
+  return JSON.parse(jsonMatch[0]);
 }

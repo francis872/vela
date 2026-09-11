@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import VelaGuide from "@/components/vela-guide";
+import BrandLogo from "@/components/brand-logo";
 
 const NAV_ITEMS = [
   {
@@ -57,6 +58,18 @@ const NAV_ITEMS = [
         <circle cx="3" cy="13" r="2" fill="currentColor" opacity=".6"/>
         <circle cx="13" cy="13" r="2" fill="currentColor" opacity=".6"/>
         <path d="M8 5L3 11M8 5L13 11" stroke="currentColor" strokeWidth="1.2" opacity=".5"/>
+      </svg>
+    ),
+  },
+  {
+    href: "/network",
+    label: "Network",
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <circle cx="3" cy="8" r="1.75" stroke="currentColor" strokeWidth="1.3" />
+        <circle cx="13" cy="3" r="1.75" stroke="currentColor" strokeWidth="1.3" />
+        <circle cx="13" cy="13" r="1.75" stroke="currentColor" strokeWidth="1.3" />
+        <path d="m4.5 7.3 6.8-3.2M4.5 8.7l6.8 3.2" stroke="currentColor" strokeWidth="1.2" />
       </svg>
     ),
   },
@@ -115,8 +128,9 @@ const NAV_ITEMS = [
 ];
 
 const BOTTOM_ITEMS = [
-  { href: "/velaseed", label: "Evaluar" },
-  { href: "/dashboard", label: "Portfolio" },
+  { href: "/profile", label: "Profile" },
+  { href: "/profile", label: "Settings" },
+  { href: "/admin/waitlist", label: "Waitlist", adminOnly: true },
   { href: "/admin/content", label: "Contenido", adminOnly: true },
   { href: "/admin/users", label: "Usuarios", adminOnly: true },
 ];
@@ -136,31 +150,60 @@ export default function OsNav({ userName, userRole }: OsNavProps) {
     return pathname.startsWith(href);
   }
 
+  const navGroups = [
+    { label: "Operate", items: NAV_ITEMS.filter((item) => ["/build", "/validate", "/capital"].includes(item.href)) },
+    { label: "Connect", items: NAV_ITEMS.filter((item) => ["/network", "/relay"].includes(item.href)) },
+    { label: "Workspace", items: [
+      { href: "/profile", label: "Venture", icon: NAV_ITEMS.find((item) => item.href === "/space")?.icon },
+      { href: "/network", label: "Team", icon: NAV_ITEMS.find((item) => item.href === "/network")?.icon },
+      { href: "/space", label: "Resources", icon: NAV_ITEMS.find((item) => item.href === "/space")?.icon },
+    ] },
+  ];
+
+  const currentLabel = navGroups.flatMap((group) => group.items).find((item) => isActive(item.href))?.label ?? "Workspace";
+
   return (
     <>
+    <header className="os-topbar">
+      <span className="os-topbar-context">{currentLabel}</span>
+      <input className="os-topbar-search" type="search" placeholder="Search anything in VELA…" aria-label="Search anything in VELA" disabled />
+      <span className="os-topbar-date">WED, SEP 11, 2026 <b>•</b> WEEK 37</span>
+      <button className="os-topbar-notification" type="button" aria-label="Notifications">○</button>
+      <Link href="/profile" className="os-topbar-user">{userName ?? "Usuario"}</Link>
+    </header>
     <nav className="os-sidebar">
       {/* Logo */}
       <div className="os-nav-logo">
-        <span>◈</span> VELA<span style={{ color: "var(--ink-3)", fontSize: "0.75rem", fontWeight: 500, letterSpacing: "0.02em" }}> OS</span>
+        <BrandLogo variant="wordmark" priority />
+        <span className="os-nav-tagline">VENTURE OPERATING SYSTEM</span>
       </div>
 
       {/* Primary nav */}
-      {NAV_ITEMS.map((item) => (
-        <Link
-          key={item.href}
-          href={item.href}
-          className={`os-nav-item ${isActive(item.href, item.exact) ? "active" : ""}`}
-        >
-          <span className="nav-icon">{item.icon}</span>
-          {item.label}
-        </Link>
+      <Link href="/vela" className={`os-nav-item ${isActive("/vela", true) ? "active" : ""}`}>
+        <span className="nav-icon" aria-hidden="true">{NAV_ITEMS.find((item) => item.href === "/vela")?.icon}</span>
+        Home
+      </Link>
+      {navGroups.map((group) => (
+        <div key={group.label}>
+          <div className="os-nav-group">{group.label}</div>
+          {group.items.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`os-nav-item ${isActive(item.href) ? "active" : ""}`}
+            >
+              <span className="nav-icon" aria-hidden="true">{item.icon}</span>
+              {item.label}
+            </Link>
+          ))}
+        </div>
       ))}
 
       {/* Bottom nav */}
       <div className="os-nav-bottom">
         {BOTTOM_ITEMS.filter((i) => !i.adminOnly || isAdmin).map((item) => (
           <Link
-            key={item.href}
+            key={`${item.href}-${item.label}`}
             href={item.href}
             className={`os-nav-item ${isActive(item.href) ? "active" : ""}`}
             style={{ fontSize: "0.8rem" }}
@@ -201,6 +244,13 @@ export default function OsNav({ userName, userRole }: OsNavProps) {
           </div>
         )}
       </div>
+    </nav>
+    <nav className="os-mobile-nav" aria-label="Primary navigation">
+      {["/vela", "/build", "/validate", "/capital", "/profile"].map((href) => {
+        const item = href === "/profile" ? { label: "Profile" } : NAV_ITEMS.find((candidate) => candidate.href === href);
+        if (!item) return null;
+        return <Link key={href} href={href} className={isActive(href, href === "/vela") ? "active" : ""}>{item.label}</Link>;
+      })}
     </nav>
     <VelaGuide />
     </>

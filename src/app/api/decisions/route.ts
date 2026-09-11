@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { SESSION_COOKIE, verifySession } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(req: NextRequest) {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE)?.value;
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const session = await verifySession(token).catch(() => null);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (!auth.ok) return auth.response;
+  const session = auth.session;
 
   const { searchParams } = new URL(req.url);
   const limit = parseInt(searchParams.get("limit") ?? "20");
@@ -22,11 +19,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE)?.value;
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const session = await verifySession(token).catch(() => null);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (!auth.ok) return auth.response;
+  const session = auth.session;
 
   const body = await req.json();
   const { title, context, choice, rationale } = body;
@@ -49,18 +44,18 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE)?.value;
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const session = await verifySession(token).catch(() => null);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (!auth.ok) return auth.response;
+  const session = auth.session;
 
   const body = await req.json();
   const { id, outcome } = body;
   if (!id || !outcome) return NextResponse.json({ error: "id and outcome required" }, { status: 400 });
 
-  const decision = await prisma.decision.findUnique({ where: { id } });
-  if (!decision || decision.ownerId !== session.sub) {
+  const decision = await prisma.decision.findFirst({
+    where: { id, ownerId: session.sub },
+  });
+  if (!decision) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -71,25 +66,25 @@ export async function PATCH(req: NextRequest) {
     update: { results: { increment: 5 } },
   });
 
-  const updated = await prisma.decision.update({ where: { id }, data: { outcome } });
+  const updated = await prisma.decision.update({ where: { id: decision.id }, data: { outcome } });
   return NextResponse.json(updated);
 }
 
 export async function DELETE(req: NextRequest) {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE)?.value;
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const session = await verifySession(token).catch(() => null);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (!auth.ok) return auth.response;
+  const session = auth.session;
 
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
-  const decision = await prisma.decision.findUnique({ where: { id } });
-  if (!decision || decision.ownerId !== session.sub) {
+  const decision = await prisma.decision.findFirst({
+    where: { id, ownerId: session.sub },
+  });
+  if (!decision) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  await prisma.decision.delete({ where: { id } });
+  await prisma.decision.delete({ where: { id: decision.id } });
   return NextResponse.json({ ok: true });
 }

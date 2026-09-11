@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireRole } from "@/lib/auth";
+import { requireProfileReady } from "@/lib/profile-gate";
 import { prisma } from "@/lib/prisma";
 
 const createExperimentSchema = z.object({
@@ -15,6 +16,9 @@ export async function GET(request: Request) {
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
+
+  const profileGate = await requireProfileReady(auth.session.sub);
+  if (profileGate) return profileGate;
 
   try {
     const experiments = await prisma.builderExperiment.findMany({

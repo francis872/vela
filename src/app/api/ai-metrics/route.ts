@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { SESSION_COOKIE, verifySession } from '@/lib/auth';
+import { requireAuth } from '@/lib/api-auth';
 import { prisma } from '@/lib/prisma';
 
 /**
@@ -9,21 +8,19 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(request: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get(SESSION_COOKIE)?.value;
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const session = await verifySession(token).catch(() => null);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+    const session = auth.session;
     
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action');
+    const isAdmin = session.role === 'admin';
     
     if (action === 'stats') {
+      // Global AI statistics are platform-level: admin only.
+      if (!isAdmin) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
       // Get AI statistics
       const today = new Date().toISOString().split('T')[0];
       const stats = await prisma.aIStatistics.findMany({
@@ -119,16 +116,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get(SESSION_COOKIE)?.value;
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const session = await verifySession(token).catch(() => null);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+    const session = auth.session;
     
     const body = await request.json();
     const { action, data } = body;
@@ -152,6 +142,10 @@ export async function POST(request: NextRequest) {
       });
       
     } else if (action === 'optimize_cache') {
+      // Cache maintenance is platform-level: admin only.
+      if (session.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
       // Clear expired cache entries
       const result = await prisma.dataCache.deleteMany({
         where: {
@@ -165,6 +159,10 @@ export async function POST(request: NextRequest) {
       });
       
     } else if (action === 'process_queue') {
+      // Queue processing is platform-level: admin only.
+      if (session.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
       // Manually trigger queue processing
       const { processAIQueue } = await import('@/lib/ollama-engine');
       await processAIQueue();

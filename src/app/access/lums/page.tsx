@@ -24,6 +24,9 @@ export default function LumsPage() {
           <p className="text-sm text-zinc-600 dark:text-zinc-300">
             Centro para seguimiento de madurez de usuarios, rutas de aprendizaje y progreso institucional.
           </p>
+          <p className="inline-flex max-w-max rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
+            Datos de demostración — estas cifras no provienen de la base de datos
+          </p>
         </header>
 
         <section className="grid gap-4 md:grid-cols-3">
