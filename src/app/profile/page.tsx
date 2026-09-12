@@ -320,7 +320,7 @@ export default function ProfilePage() {
                 {roleInfo.label}
                 </span>
               </div>
-              <div className="profile-hero-action"><a href="#profile-editor" className="btn-ghost">Edit profile</a></div>
+              <div className="profile-hero-action"><button type="button" className="btn-ghost" onClick={() => document.getElementById("profile-editor")?.scrollIntoView({ behavior: "smooth", block: "start" })}>Edit profile</button></div>
             </div>
 
             <div className="profile-metrics grid gap-3 sm:grid-cols-3">
@@ -360,7 +360,7 @@ export default function ProfilePage() {
         </section>
 
         {/* ── Sesiones activas ── */}
-        <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-6">
+        <section id="profile-editor" className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-6">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-lg font-semibold">Sesiones activas</h2>
             <span className="rounded-full border border-zinc-700 px-2.5 py-0.5 text-xs font-semibold text-zinc-400">

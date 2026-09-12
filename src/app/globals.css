@@ -136,9 +136,9 @@ h1, h2, h3, h4 { letter-spacing: -0.025em; font-weight: 700; }
   scrollbar-width: thin;
 }
 
-.os-main { margin-left: 220px; padding-top: 52px; flex: 1; min-height: 100vh; display: flex; flex-direction: column; }
+.os-main { margin-left: 220px; padding-top: 52px; flex: 1; min-width: 0; max-width: calc(100vw - 220px); min-height: 100vh; display: flex; flex-direction: column; overflow-x: hidden; }
 
-@media (max-width: 768px) { .os-sidebar { display: none; } .os-main { margin-left: 0; padding-top: 52px; } }
+@media (max-width: 768px) { .os-sidebar { display: none; } .os-main { width: 100vw; max-width: 100vw; margin-left: 0; padding-top: 52px; } }
 
 .os-topbar {
   position: fixed;
