@@ -10,10 +10,20 @@ type Session = { name: string; email: string; role: string };
 type PulseAction = { id: string; title: string; reason: string; href: string; priority: "high" | "medium" | "low" };
 type Activity = { id: string; kind: string; title: string; detail: string; createdAt: string };
 type Sprint = { id: string; title: string; status: string; weekEnd: string; items: { id: string; title: string; done: boolean }[] };
+type Command = {
+  status: "ATTENTION" | "FOCUS" | "STABLE";
+  priority: "HIGH" | "MEDIUM" | "LOW";
+  title: string;
+  explanation: string;
+  action: { title: string; href: string };
+  evidence: string[];
+  affectedMetric: string;
+};
 type Pulse = {
   venture: { name: string; sector: string; stage: string; description: string | null } | null;
   phase: string | null;
   metrics: Record<string, MetricResult>;
+  command: Command;
   currentSprint: Sprint | null;
   trajectory: { assessment: { status: string; factors: string[] }; executionRisk: { status: string; level: string | null; factors: string[] }; validationRisk: { status: string; level: string | null; factors: string[] } };
   nextActions: PulseAction[];
@@ -77,6 +87,31 @@ export default function HomeDashboard({ session }: { session: Session }) {
           </div>
         </div>
       </header>
+
+      {!loading && pulse?.command && (
+        <section className={`home-command home-command-${pulse.command.status.toLowerCase()}`} aria-labelledby="command-title">
+          <div className="home-command-rail">
+            <span className="home-eyebrow">VELA Today</span>
+            <span className={`home-command-status ${pulse.command.priority.toLowerCase()}`}>{pulse.command.status}</span>
+          </div>
+          <div className="home-command-copy">
+            <span className="home-command-kicker">What needs your attention</span>
+            <h2 id="command-title">{pulse.command.title}</h2>
+            <p>{pulse.command.explanation}</p>
+            <div className="home-command-evidence">
+              <span>Affects {pulse.command.affectedMetric}</span>
+              <span>{pulse.command.evidence.length} evidence source{pulse.command.evidence.length === 1 ? "" : "s"}</span>
+            </div>
+          </div>
+          <div className="home-command-action">
+            <Link href={pulse.command.action.href} className="btn-primary">
+              {pulse.command.action.title}
+              <span aria-hidden="true">→</span>
+            </Link>
+            <small>Recommended from current venture evidence</small>
+          </div>
+        </section>
+      )}
 
       <section className="home-section home-pulse-section" aria-labelledby="pulse-title">
         <div className="home-section-heading"><div><span className="home-eyebrow">Live operating picture</span><h2 id="pulse-title">Venture Pulse</h2></div><span className="home-section-note">Real data. Real progress.</span></div>
