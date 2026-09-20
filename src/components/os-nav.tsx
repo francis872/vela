@@ -155,7 +155,7 @@ export default function OsNav({ userName, userRole }: OsNavProps) {
     { label: "Connect", items: NAV_ITEMS.filter((item) => ["/network", "/relay"].includes(item.href)) },
     { label: "Workspace", items: [
       { href: "/venture", label: "Venture", icon: NAV_ITEMS.find((item) => item.href === "/space")?.icon },
-      { href: "/network", label: "Team", icon: NAV_ITEMS.find((item) => item.href === "/network")?.icon },
+      { href: "/team", label: "Team", icon: NAV_ITEMS.find((item) => item.href === "/network")?.icon },
       { href: "/space", label: "Resources", icon: NAV_ITEMS.find((item) => item.href === "/space")?.icon },
     ] },
   ];
