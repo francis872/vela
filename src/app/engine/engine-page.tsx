@@ -7,6 +7,16 @@ type Sprint = {
   id: string; title: string; weekStart: string; weekEnd: string;
   status: "active" | "completed" | "blocked"; items: SprintItem[];
 };
+type EngineIntelligence = {
+  status: "ATTENTION" | "FOCUS" | "STABLE" | "SETUP";
+  title: string;
+  explanation: string;
+  action: { label: string; kind: "SPRINT" | "VALIDATE" | "BUILD" | "REVIEW" };
+  confidence: "LOW" | "MEDIUM" | "HIGH";
+  focusMetric: string;
+  evidence: string[];
+};
+
 type SprintReview = {
   summary: string;
   wins: string[];
@@ -106,22 +116,45 @@ export default function ExecutionEngine() {
   const [trajectory, setTrajectory] = useState<Trajectory | null>(null);
   const [sprintReviews, setSprintReviews] = useState<Record<string, SprintReview>>({});
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [intelligence, setIntelligence] = useState<EngineIntelligence | null>(null);
 
   const total = score.execution + score.results + score.collaboration;
   const level = getLevel(total);
 
+  async function loadEngine(silent = false) {
+    if (!silent) setLoading(true);
+    try {
+      const [sprintsRes, scoreRes, genomeRes, trajectoryRes, intelligenceRes] = await Promise.all([
+        fetch("/api/sprints", { cache: "no-store" }),
+        fetch("/api/score", { cache: "no-store" }),
+        fetch("/api/engine/genome", { cache: "no-store" }),
+        fetch("/api/engine/trajectory", { cache: "no-store" }),
+        fetch("/api/engine/intelligence", { cache: "no-store" }),
+      ]);
+      if (sprintsRes.ok) setSprints(await sprintsRes.json());
+      if (scoreRes.ok) setScore(await scoreRes.json());
+      if (genomeRes.ok) setGenome(await genomeRes.json());
+      if (trajectoryRes.ok) setTrajectory(await trajectoryRes.json());
+      if (intelligenceRes.ok) {
+        const payload = await intelligenceRes.json();
+        setIntelligence(payload.intelligence ?? null);
+      }
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }
+
+  useEffect(() => { void loadEngine(); }, []);
+
   useEffect(() => {
-    Promise.all([
-      fetch("/api/sprints").then((r) => r.json()),
-      fetch("/api/score").then((r) => r.json()),
-      fetch("/api/engine/genome").then((r) => r.json()),
-      fetch("/api/engine/trajectory").then((r) => (r.ok ? r.json() : null)),
-    ]).then(([s, sc, g, t]) => {
-      setSprints(s);
-      setScore(sc);
-      setGenome(g);
-      setTrajectory(t);
-    }).catch(() => setLoading(false));
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const stream = new EventSource("/api/home/events");
+    const refresh = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => void loadEngine(true), 250);
+    };
+    stream.addEventListener("domain-event", refresh);
+    return () => { if (timer) clearTimeout(timer); stream.close(); };
   }, []);
 
   async function toggleItem(sprintId: string, itemId: string, done: boolean) {
@@ -180,16 +213,53 @@ export default function ExecutionEngine() {
 
   if (loading) return <div style={{ padding: "2rem", color: "var(--ink-3)" }}>Cargando...</div>;
 
+  function runIntelligenceAction() {
+    if (!intelligence) { setCreating(true); return; }
+    if (intelligence.action.kind === "SPRINT") setCreating(true);
+    if (intelligence.action.kind === "VALIDATE") window.location.href = "/validate";
+    if (intelligence.action.kind === "BUILD") window.location.href = "/build";
+    if (intelligence.action.kind === "REVIEW") document.getElementById("engine-sprints")?.scrollIntoView({ behavior: "smooth" });
+  }
+
   return (
-    <div style={{ padding: "2.5rem 2rem 4rem" }}>
-      {/* Header */}
-      <div className="os-page-header" style={{ marginBottom: "2rem" }}>
+    <div className="engine-shell">
+      <header className="engine-context">
         <div>
-          <h1 className="os-page-title">Execution Engine</h1>
-          <p className="os-page-sub">Compromisos semanales. Si no ejecutas, no avanzas.</p>
+          <span className="home-eyebrow">Operating cadence</span>
+          <h1>Engine</h1>
+          <p>Convert priorities and evidence into weekly commitments, measurable throughput and execution learning.</p>
         </div>
-        <button onClick={() => setCreating(true)} className="btn-primary">+ Nuevo sprint</button>
-      </div>
+        <div className="engine-context-meta">
+          <span className="home-eyebrow">Current level</span>
+          <strong>{level.label}</strong>
+          <small>{total} execution points · {sprints.length} sprint(s)</small>
+        </div>
+      </header>
+
+      <section className={`engine-command engine-command-${(intelligence?.status ?? "SETUP").toLowerCase()}`}>
+        <div className="engine-command-rail">
+          <span className="home-eyebrow">Engine Intelligence</span>
+          <span className="engine-command-status">{intelligence?.status ?? "SETUP"}</span>
+        </div>
+        <div>
+          <span className="engine-command-kicker">{intelligence?.focusMetric ?? "Execution focus"}</span>
+          <h2>{intelligence?.title ?? "Create an operating cycle."}</h2>
+          <p>{intelligence?.explanation ?? "VELA needs a Sprint before it can evaluate execution reliability."}</p>
+        </div>
+        <div className="engine-command-action">
+          <button className="btn-primary" onClick={runIntelligenceAction}>{intelligence?.action.label ?? "Create Sprint"} <span aria-hidden="true">→</span></button>
+          <small>{intelligence?.confidence ?? "LOW"} confidence · execution evidence</small>
+        </div>
+      </section>
+
+      {genome && (
+        <section className="engine-intelligence-strip">
+          <EngineStat label="Startup Health" value={genome.startupHealthIndex ?? "—"} note="composite operating index" />
+          <EngineStat label="Execution Velocity" value={genome.indicators.find((item) => item.id === "velocity")?.value ?? "—"} note="throughput and cadence" />
+          <EngineStat label="PMF Evidence" value={genome.indicators.find((item) => item.id === "pmf")?.value ?? "—"} note="validation strength" />
+          <EngineStat label="Operational Health" value={genome.indicators.find((item) => item.id === "health")?.value ?? "—"} note="objective reliability" />
+        </section>
+      )}
 
       {/* ── Startup Genome Engine ─────────────────────────────── */}
       {genome && (
@@ -352,7 +422,7 @@ export default function ExecutionEngine() {
       )}
 
       {/* Sprint list */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+      <div id="engine-sprints" className="engine-sprint-list">
         {sprints.length === 0 && !creating && (
           <div className="os-card" style={{ textAlign: "center", padding: "3rem" }}>
             <p style={{ color: "var(--ink-3)", marginBottom: "1rem" }}>No hay sprints activos. Define tus compromisos de esta semana.</p>
@@ -458,4 +528,8 @@ export default function ExecutionEngine() {
       </div>
     </div>
   );
+
+function EngineStat({ label, value, note }: { label: string; value: string | number; note: string }) {
+  return <div className="engine-stat"><span>{label}</span><strong>{value}</strong><small>{note}</small></div>;
+}
 }
