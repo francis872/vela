@@ -717,11 +717,35 @@ model Venture {
   objectives        Objective[]         @relation("VentureObjectives")
   cohorts           CohortVenture[]
   members           VentureMember[]
+  assignments       WorkAssignment[]
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
   @@index([userId])
   @@index([stage])
+}
+
+model WorkAssignment {
+  id          String   @id @default(cuid())
+  ventureId   String
+  memberId    String
+  workType    String
+  workId      String
+  title       String
+  status      String
+  weight      Int      @default(1)
+  dueAt       DateTime?
+  source      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  venture     Venture       @relation(fields: [ventureId], references: [id], onDelete: Cascade)
+  member      VentureMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([ventureId, memberId, workType, workId])
+  @@index([ventureId, workType])
+  @@index([memberId, status])
+  @@index([dueAt])
 }
 
 model VentureMember {
@@ -736,6 +760,7 @@ model VentureMember {
   joinedAt    DateTime @default(now())
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  assignments WorkAssignment[]
 
   @@unique([ventureId, userId])
   @@index([ventureId, status])
