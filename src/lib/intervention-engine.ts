@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { dispatchDomainEvent } from "@/lib/domain-events";
 
 export type InterventionProposal = {
   title: string;
@@ -109,7 +110,8 @@ export async function updateInterventionOutcomes(ownerId: string, metrics: Metri
     const expired = intervention.deadline ? intervention.deadline.getTime() <= now.getTime() : false;
     const achieved = improvement >= target;
 
-    await prisma.intervention.update({
+    const wasCompleted = intervention.status === "completed";
+    const updated = await prisma.intervention.update({
       where: { id: intervention.id },
       data: achieved ? {
         status: "completed",
@@ -133,5 +135,12 @@ export async function updateInterventionOutcomes(ownerId: string, metrics: Metri
         outcomeSummary: `${intervention.targetMetric} has changed ${Math.round(rawDelta * 10) / 10} points while VELA continues measuring the intervention.`,
       },
     });
+    if (!wasCompleted && updated.status === "completed") {
+      await dispatchDomainEvent("intervention_completed", {
+        interventionId: updated.id,
+        ownerId,
+        outcomeStatus: updated.outcomeStatus,
+      });
+    }
   }
 }
