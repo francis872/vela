@@ -25,7 +25,20 @@ type Pulse = {
   metrics: Record<string, MetricResult>;
   command: Command;
   currentSprint: Sprint | null;
-  trajectory: { assessment: { status: string; factors: string[] }; executionRisk: { status: string; level: string | null; factors: string[] }; validationRisk: { status: string; level: string | null; factors: string[] } };
+  trajectory: {
+    assessment: { status: string; factors: string[] };
+    executionRisk: { status: string; level: string | null; factors: string[] };
+    validationRisk: { status: string; level: string | null; factors: string[] };
+    history: {
+      status: "AVAILABLE" | "INSUFFICIENT_DATA";
+      direction: "IMPROVING" | "STABLE" | "DECLINING" | null;
+      velocityPerDay: number | null;
+      delta: number | null;
+      daysObserved: number | null;
+      explanation: string;
+      points: { capturedAt: string; velocity: number | null; validation: number | null; risk: number | null; readiness: number | null; sprintCompletion: number | null }[];
+    };
+  };
   nextActions: PulseAction[];
   activity: Activity[];
   ai: {
@@ -168,7 +181,23 @@ export default function HomeDashboard({ session }: { session: Session }) {
           <div className="home-lower-grid">
             <section className="home-surface-panel" aria-labelledby="trajectory-title">
               <div className="home-section-heading"><div><span className="home-eyebrow">Based on real execution and validation signals</span><h2 id="trajectory-title">Trajectory</h2></div><span className="home-traj-status">{pulse?.trajectory.assessment.status ?? "—"}</span></div>
-              {pulse?.trajectory.assessment.status === "INSUFFICIENT_DATA" ? <DataState status="INSUFFICIENT_DATA" explanation={pulse.trajectory.assessment.factors[0]} /> : <div className="trajectory-content"><div className="trajectory-line" aria-hidden="true"><span /><span /><span /><span /></div><div><strong>{pulse?.trajectory.assessment.status.replaceAll("_", " ") ?? "Unavailable"}</strong><p>{pulse?.trajectory.assessment.factors.join(" · ")}</p></div></div>}
+              {pulse?.trajectory.history.status === "INSUFFICIENT_DATA" ? <DataState status="INSUFFICIENT_DATA" explanation={pulse.trajectory.history.explanation} /> : pulse?.trajectory.history ? <>
+                <div className="home-trajectory-summary">
+                  <strong>{pulse.trajectory.history.direction}</strong>
+                  <span>{pulse.trajectory.history.delta !== null && pulse.trajectory.history.delta >= 0 ? "+" : ""}{pulse.trajectory.history.delta} pts</span>
+                  <span>{pulse.trajectory.history.velocityPerDay !== null && pulse.trajectory.history.velocityPerDay >= 0 ? "+" : ""}{pulse.trajectory.history.velocityPerDay} pts/day</span>
+                  <span>{pulse.trajectory.history.daysObserved} days observed</span>
+                </div>
+                <div className="trajectory-real-chart" aria-label="Historical venture pulse">
+                  {pulse.trajectory.history.points.slice(-16).map((point) => {
+                    const values = [point.velocity, point.validation, point.readiness, point.sprintCompletion, typeof point.risk === "number" ? 100 - point.risk : null].filter((value): value is number => typeof value === "number");
+                    const score = values.length >= 2 ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+                    return <span key={point.capturedAt} style={{ height: `${Math.max(8, score ?? 8)}%` }} title={new Date(point.capturedAt).toLocaleString()} />;
+                  })}
+                </div>
+                <p className="home-trajectory-explanation">{pulse.trajectory.history.explanation}</p>
+                <div className="trajectory-factors">{pulse.trajectory.assessment.factors.slice(0, 3).map((factor) => <span key={factor}>{factor}</span>)}</div>
+              </> : <DataState status="INSUFFICIENT_DATA" explanation="VELA is collecting trajectory history." />}
             </section>
             <section className="home-surface-panel" aria-labelledby="key-metrics-title">
               <div className="home-section-heading"><div><span className="home-eyebrow">Real data only</span><h2 id="key-metrics-title">Key Metrics</h2></div></div>
