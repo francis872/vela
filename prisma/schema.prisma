@@ -64,6 +64,7 @@ model User {
   mfaRecoveryCodes  MfaRecoveryCode[]
   auditLogs         AuditLog[]
   venture           Venture?
+  ventureMemberships VentureMember[]
   organizationUsers OrganizationUser[]
   aiMemories        AIMemory[] @relation("AIMemories")
   aiConversations   AIConversation[] @relation("AIConversations")
@@ -715,11 +716,31 @@ model Venture {
   diagnostics       Diagnostic[]
   objectives        Objective[]         @relation("VentureObjectives")
   cohorts           CohortVenture[]
+  members           VentureMember[]
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
   @@index([userId])
   @@index([stage])
+}
+
+model VentureMember {
+  id          String   @id @default(cuid())
+  ventureId   String
+  venture     Venture  @relation(fields: [ventureId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        String
+  responsibility String?
+  status      String   @default("active")
+  joinedAt    DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([ventureId, userId])
+  @@index([ventureId, status])
+  @@index([userId])
+  @@index([role])
 }
 
 model Diagnostic {
