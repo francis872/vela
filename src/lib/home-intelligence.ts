@@ -39,6 +39,13 @@ export type HomeIntelligenceInput = {
     explanation: string;
     confidence: "LOW" | "MEDIUM" | "HIGH";
   };
+  decisionMemory?: {
+    status: "AVAILABLE" | "INSUFFICIENT_DATA";
+    recommendation: { decisionTitle: string; choice: string; outcomeStatus: string; confidence: string; lesson: string } | null;
+    avoidedDecision: { decisionTitle: string; choice: string; outcomeStatus: string; confidence: string; lesson: string } | null;
+    memories: unknown[];
+    explanation: string;
+  };
   history: {
     status: "AVAILABLE" | "INSUFFICIENT_DATA";
     direction: "IMPROVING" | "STABLE" | "DECLINING" | null;
@@ -84,6 +91,7 @@ function confidenceFromEvidence(input: HomeIntelligenceInput) {
   if (input.history.status === "AVAILABLE") sources += 1;
   if (input.history.dynamics.status === "AVAILABLE") sources += 1;
   if (input.rootCause.status === "AVAILABLE") sources += 1;
+  if (input.decisionMemory?.status === "AVAILABLE") sources += 1;
 
   if (sources >= 6) return "HIGH" as const;
   if (sources >= 3) return "MEDIUM" as const;
@@ -122,6 +130,17 @@ export function synthesizeHomeIntelligence(input: HomeIntelligenceInput): HomeIn
   }
   if (input.validationRisk.level === "HIGH") {
     tensions.push(input.validationRisk.factors[0] ?? "Validation risk is high.");
+  }
+
+  if (input.decisionMemory?.status === "AVAILABLE") {
+    evidence.push(`decision_memory:${input.decisionMemory.memories.length}`);
+    if (input.decisionMemory.recommendation) {
+      evidence.push(`prior_decision_positive:${input.decisionMemory.recommendation.outcomeStatus.toLowerCase()}`);
+    }
+    if (input.decisionMemory.avoidedDecision) {
+      evidence.push("prior_decision_no_improvement");
+      tensions.push(`A comparable prior decision — “${input.decisionMemory.avoidedDecision.decisionTitle}” — produced no improvement. Treat this as historical evidence, not proof that the same outcome will recur.`);
+    }
   }
 
   const confidence = confidenceFromEvidence(input);
@@ -266,6 +285,20 @@ export function synthesizeHomeIntelligence(input: HomeIntelligenceInput): HomeIn
       evidence: [...new Set(evidence)],
       tensions,
       focus: "Turn execution evidence into investment-grade proof.",
+    };
+  }
+
+  if (input.decisionMemory?.status === "AVAILABLE" && input.decisionMemory.recommendation && input.command.status !== "STABLE") {
+    const memory = input.decisionMemory.recommendation;
+    return {
+      type: "STRATEGIC_INTERPRETATION",
+      title: input.command.title,
+      thesis: "The current constraint has a comparable decision pattern in VELA memory.",
+      body: `${input.command.explanation} In a related prior context, “${memory.decisionTitle}” was associated with a ${memory.outcomeStatus.toLowerCase()} outcome. This is supporting historical evidence, not a guarantee or causal proof. ${memory.lesson}`,
+      confidence,
+      evidence: [...new Set(evidence)],
+      tensions,
+      focus: input.command.affectedMetric,
     };
   }
 
