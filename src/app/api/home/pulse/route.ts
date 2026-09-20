@@ -8,6 +8,7 @@ import { synthesizeHomeIntelligence } from "@/lib/home-intelligence";
 import { capturePulseSnapshot, getPulseTrend } from "@/lib/pulse-history";
 import { analyzeRootCause } from "@/lib/root-cause-intelligence";
 import { listInterventions, proposeIntervention, updateInterventionOutcomes } from "@/lib/intervention-engine";
+import { consolidateLearningMemory, recallLearning } from "@/lib/learning-memory";
 
 export const dynamic = "force-dynamic";
 
@@ -218,8 +219,14 @@ export async function GET(req: NextRequest) {
     sprintCompletion,
   };
   await updateInterventionOutcomes(ownerId, interventionMetrics);
+  await consolidateLearningMemory(ownerId);
   const interventions = await listInterventions(ownerId);
   const interventionProposal = proposeIntervention({ command, rootCause, metrics: interventionMetrics });
+  const learningMemory = await recallLearning(ownerId, {
+    targetMetric: interventionProposal.targetMetric,
+    source: interventionProposal.source,
+    evidence: interventionProposal.sourceEvidence,
+  });
 
   const ai = synthesizeHomeIntelligence({
     command,
@@ -253,6 +260,7 @@ export async function GET(req: NextRequest) {
     nextActions,
     interventions,
     interventionProposal,
+    learningMemory,
     activity,
     activitySource: "persisted_domain_records",
     ai,
