@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState, FormEvent } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { SignalType, ValidationCoverageResponse } from "@/lib/functional-contracts";
 
 type Session = { name: string; email: string; role: string };
-
 type Signal = {
   id: string;
   type: "experiment" | "interview" | "metric" | "insight";
@@ -16,321 +15,230 @@ type Signal = {
   ownerName: string;
   createdAt: string;
 };
-
-type CoverageNode = {
-  id: string;
-  title: string;
-  status: string;
-  signalCount: number;
-  signalTypes: string[];
-};
-
-type CoverageAnalysis = {
-  blindSpots: string[];
-  hubs: string[];
-  coverageMap: Record<string, number>;
-  coverageRatio: number;
-  nextToValidate: string[];
-};
-
+type CoverageNode = { id: string; title: string; status: string; signalCount: number; signalTypes: string[] };
+type CoverageAnalysis = { blindSpots: string[]; hubs: string[]; coverageMap: Record<string, number>; coverageRatio: number; nextToValidate: string[] };
 type Objective = { id: string; title: string; status: string };
+type ValidateIntelligence = {
+  status: "ATTENTION" | "FOCUS" | "STABLE" | "SETUP";
+  title: string;
+  explanation: string;
+  focusObjectiveId: string | null;
+  focusObjectiveTitle: string | null;
+  suggestedSignalType: SignalType;
+  actionLabel: string;
+  confidence: "LOW" | "MEDIUM" | "HIGH";
+  evidence: string[];
+  coverage: { ratio: number; blindSpots: { id: string; title: string; priority: number }[]; nextToValidate: string | null };
+  signalMix: { experiment: number; interview: number; metric: number; insight: number; diversity: number; unlinked: number };
+};
 
 const SIGNAL_TYPES = [
-  { value: "experiment", label: "Experimento", icon: "⚗", desc: "Prueba de hipótesis con resultado medible", color: "var(--blue)" },
-  { value: "interview",  label: "Entrevista",  icon: "💬", desc: "Conversación con usuario o cliente",        color: "var(--green)" },
-  { value: "metric",     label: "Métrica",     icon: "📊", desc: "Indicador cuantitativo observado",          color: "var(--amber)" },
-  { value: "insight",    label: "Insight",     icon: "💡", desc: "Aprendizaje cualitativo clave",             color: "var(--accent)" },
-];
-
-const TYPE_BADGE: Record<string, string> = {
-  experiment: "badge-blue",
-  interview:  "badge-green",
-  metric:     "badge-amber",
-  insight:    "badge-accent",
-};
+  { value: "experiment", label: "Experiment", desc: "Test a hypothesis with a measurable result" },
+  { value: "interview", label: "Interview", desc: "Direct customer or user evidence" },
+  { value: "metric", label: "Metric", desc: "Observed quantitative evidence" },
+  { value: "insight", label: "Insight", desc: "A qualitative learning worth retaining" },
+] as const;
 
 export default function ValidatePage({ session }: { session: Session }) {
   const [signals, setSignals] = useState<Signal[]>([]);
+  const [objectives, setObjectives] = useState<Objective[]>([]);
+  const [coverageNodes, setCoverageNodes] = useState<CoverageNode[]>([]);
+  const [coverageAnalysis, setCoverageAnalysis] = useState<CoverageAnalysis | null>(null);
+  const [intelligence, setIntelligence] = useState<ValidateIntelligence | null>(null);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState("all");
+  const [form, setForm] = useState({ type: "experiment" as SignalType, title: "", result: "", hypothesis: "", learning: "", objectiveId: "" });
 
-  // Coverage
-  const [coverageNodes, setCoverageNodes] = useState<CoverageNode[]>([]);
-  const [coverageAnalysis, setCoverageAnalysis] = useState<CoverageAnalysis | null>(null);
-  const [coverageLoading, setCoverageLoading] = useState(true);
-  const [objectives, setObjectives] = useState<Objective[]>([]);
-
-  const [form, setForm] = useState({
-    type: "experiment" as SignalType, title: "", result: "", hypothesis: "", learning: "", objectiveId: ""
-  });
-
-  async function load() {
-    setLoading(true);
-    const res = await fetch("/api/signals?limit=50");
-    if (res.ok) setSignals(await res.json());
-    setLoading(false);
-  }
-
-  async function loadCoverage() {
-    setCoverageLoading(true);
-    const res = await fetch("/api/validate/coverage");
-    if (res.ok) {
-      const data = (await res.json()) as ValidationCoverageResponse;
-      setCoverageNodes(data.nodes ?? []);
-      setCoverageAnalysis(data.analysis ?? null);
+  async function load(silent = false) {
+    if (!silent) setLoading(true);
+    try {
+      const [signalsRes, coverageRes, objectivesRes, intelligenceRes] = await Promise.all([
+        fetch("/api/signals?limit=50", { cache: "no-store" }),
+        fetch("/api/validate/coverage", { cache: "no-store" }),
+        fetch("/api/objectives?limit=100", { cache: "no-store" }),
+        fetch("/api/validate/intelligence", { cache: "no-store" }),
+      ]);
+      if (signalsRes.ok) setSignals(await signalsRes.json());
+      if (coverageRes.ok) {
+        const data = (await coverageRes.json()) as ValidationCoverageResponse;
+        setCoverageNodes(data.nodes ?? []);
+        setCoverageAnalysis(data.analysis as CoverageAnalysis);
+      }
+      if (objectivesRes.ok) setObjectives(await objectivesRes.json());
+      if (intelligenceRes.ok) {
+        const data = await intelligenceRes.json();
+        setIntelligence(data.intelligence ?? null);
+      }
+    } finally {
+      if (!silent) setLoading(false);
     }
-    setCoverageLoading(false);
   }
+
+  useEffect(() => { void load(); }, []);
 
   useEffect(() => {
-    void Promise.resolve().then(load);
-    void Promise.resolve().then(loadCoverage);
-    fetch("/api/objectives?limit=100")
-      .then((res) => (res.ok ? (res.json() as Promise<Objective[]>) : []))
-      .then(setObjectives)
-      .catch(() => setObjectives([]));
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const stream = new EventSource("/api/home/events");
+    const refresh = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => void load(true), 250);
+    };
+    stream.addEventListener("domain-event", refresh);
+    return () => { if (timer) clearTimeout(timer); stream.close(); };
   }, []);
+
+  function openIntelligentSignal() {
+    setForm((current) => ({
+      ...current,
+      type: intelligence?.suggestedSignalType ?? "interview",
+      objectiveId: intelligence?.focusObjectiveId ?? current.objectiveId,
+    }));
+    setShowForm(true);
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!form.title.trim()) return;
     setSaving(true);
-    await fetch("/api/signals", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, objectiveId: form.objectiveId || undefined }),
-    });
-    setForm({ type: "experiment", title: "", result: "", hypothesis: "", learning: "", objectiveId: "" });
-    setShowForm(false);
-    setSaving(false);
-    await load();
-    await loadCoverage();
+    try {
+      const response = await fetch("/api/signals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, objectiveId: form.objectiveId || undefined }),
+      });
+      if (!response.ok) return;
+      setForm({ type: "experiment", title: "", result: "", hypothesis: "", learning: "", objectiveId: "" });
+      setShowForm(false);
+      await load(true);
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function deleteSignal(id: string) {
-    if (!confirm("¿Eliminar esta señal?")) return;
-    await fetch("/api/signals", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
-    await load();
+    if (!confirm("Delete this signal?")) return;
+    const response = await fetch("/api/signals", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+    if (response.ok) await load(true);
   }
 
-  const displayed = filter === "all" ? signals : signals.filter((s) => s.type === filter);
-
-  const counts = SIGNAL_TYPES.reduce((acc, t) => {
-    acc[t.value] = signals.filter((s) => s.type === t.value).length;
-    return acc;
-  }, {} as Record<string, number>);
+  const displayed = filter === "all" ? signals : signals.filter((signal) => signal.type === filter);
+  const counts = useMemo(() => Object.fromEntries(SIGNAL_TYPES.map((type) => [type.value, signals.filter((signal) => signal.type === type.value).length])), [signals]);
+  const coverage = intelligence?.coverage.ratio ?? coverageAnalysis?.coverageRatio ?? 0;
 
   return (
-    <div className="os-reveal" style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
-      <div className="os-page-header">
+    <div className="validate-shell">
+      <header className="validate-context">
         <div>
-          <div className="os-page-title">Validate</div>
-          <div className="os-page-sub">Señales de mercado, experimentos y aprendizajes</div>
+          <span className="home-eyebrow">Evidence system</span>
+          <h1>Validate</h1>
+          <p>Connect customer evidence, experiments and metrics directly to the execution assumptions VELA is tracking.</p>
         </div>
-        <button onClick={() => setShowForm(true)} className="btn-primary">+ Nueva señal</button>
-      </div>
+        <div className="validate-context-meta">
+          <span className="home-eyebrow">Operator</span>
+          <strong>{session.name}</strong>
+          <small>{signals.length} signals · {Math.round(coverage * 100)}% objective coverage</small>
+        </div>
+      </header>
 
-      <div style={{ padding: "1.5rem 2.5rem", flex: 1, display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+      <section className={`validate-command validate-command-${(intelligence?.status ?? "SETUP").toLowerCase()}`}>
+        <div className="validate-command-rail">
+          <span className="home-eyebrow">Validate Intelligence</span>
+          <span className="validate-command-status">{intelligence?.status ?? "SETUP"}</span>
+        </div>
+        <div>
+          <span className="validate-command-kicker">Evidence focus</span>
+          <h2>{intelligence?.title ?? "Build a validation evidence base."}</h2>
+          <p>{intelligence?.explanation ?? "VELA is waiting for enough persisted evidence to identify the next validation priority."}</p>
+          {intelligence?.focusObjectiveTitle && <small className="validate-focus-objective">Focus · {intelligence.focusObjectiveTitle}</small>}
+        </div>
+        <div className="validate-command-action">
+          <button className="btn-primary" onClick={openIntelligentSignal}>{intelligence?.actionLabel ?? "New signal"} <span aria-hidden="true">→</span></button>
+          <small>{intelligence?.confidence ?? "LOW"} confidence · evidence grounded</small>
+        </div>
+      </section>
 
-        {/* Signal type summary */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.875rem" }}>
-          {SIGNAL_TYPES.map((t) => (
-            <button
-              key={t.value}
-              onClick={() => setFilter(filter === t.value ? "all" : t.value)}
-              className="os-card os-hover-lift"
-              style={{ textAlign: "left", border: filter === t.value ? `1px solid ${t.color}` : undefined, cursor: "pointer", background: "var(--surface)" }}
-            >
-              <div style={{ fontSize: "1.25rem", marginBottom: "0.5rem" }}>{t.icon}</div>
-              <div style={{ fontWeight: 700, fontSize: "0.875rem", color: "var(--ink)" }}>{counts[t.value] ?? 0}</div>
-              <div style={{ fontSize: "0.75rem", color: "var(--ink-3)", marginTop: "0.1rem" }}>{t.label}</div>
+      <section className="validate-intelligence-strip">
+        <ValidateStat label="Coverage" value={`${Math.round(coverage * 100)}%`} note={`${intelligence?.coverage.blindSpots.length ?? coverageAnalysis?.blindSpots.length ?? 0} blind spot(s)`} />
+        <ValidateStat label="Signal diversity" value={intelligence?.signalMix.diversity ?? 0} note="of 4 evidence types" />
+        <ValidateStat label="Customer evidence" value={counts.interview ?? 0} note="interviews" />
+        <ValidateStat label="Unlinked" value={intelligence?.signalMix.unlinked ?? 0} note="signals without objective" />
+      </section>
+
+      <section className="validate-workspace">
+        <div className="home-section-heading">
+          <div><span className="home-eyebrow">Validation pulse</span><h2>Evidence Coverage</h2></div>
+          <button className="btn-primary" onClick={openIntelligentSignal}>+ New signal</button>
+        </div>
+
+        <div className="validate-type-grid">
+          {SIGNAL_TYPES.map((type) => (
+            <button key={type.value} className={filter === type.value ? "is-active" : ""} onClick={() => setFilter(filter === type.value ? "all" : type.value)}>
+              <span>{type.label}</span><strong>{counts[type.value] ?? 0}</strong><small>{type.desc}</small>
             </button>
           ))}
         </div>
 
-        {/* ── Coverage Map ── */}
-        {!coverageLoading && coverageAnalysis && coverageNodes.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <h3 style={{ fontWeight: 700, fontSize: "0.875rem", color: "var(--ink)", letterSpacing: "-0.01em" }}>
-                Mapa de Cobertura
-              </h3>
-              <span style={{ fontSize: "0.78rem", color: "var(--ink-3)" }}>
-                {Math.round(coverageAnalysis.coverageRatio * 100)}% de objetivos validados
-              </span>
-            </div>
-            <div style={{ height: 6, background: "var(--surface-2)", borderRadius: 4, overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${coverageAnalysis.coverageRatio * 100}%`, background: "var(--green)", borderRadius: 4, transition: "width 0.5s ease" }} />
-            </div>
-            <div style={{ display: "flex", gap: "0.875rem", flexWrap: "wrap" }}>
-              {coverageAnalysis.blindSpots.length > 0 && (
-                <div className="os-card" style={{ flex: "1 1 220px", borderLeft: "3px solid var(--red)" }}>
-                  <div style={{ fontWeight: 700, color: "var(--red)", fontSize: "0.8rem", marginBottom: "0.5rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                    Puntos ciegos ({coverageAnalysis.blindSpots.length})
-                  </div>
-                  {coverageAnalysis.blindSpots.map((id) => {
-                    const n = coverageNodes.find((n) => n.id === id);
-                    return (
-                      <div key={id} style={{ fontSize: "0.8rem", color: "var(--ink-2)", display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.3rem" }}>
-                        <span style={{ color: "var(--red)" }}>○</span>{n?.title ?? id}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              {coverageAnalysis.hubs.length > 0 && (
-                <div className="os-card" style={{ flex: "1 1 220px", borderLeft: "3px solid var(--green)" }}>
-                  <div style={{ fontWeight: 700, color: "var(--green)", fontSize: "0.8rem", marginBottom: "0.5rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                    Más validados
-                  </div>
-                  {coverageAnalysis.hubs.map((id) => {
-                    const n = coverageNodes.find((n) => n.id === id);
-                    return (
-                      <div key={id} style={{ fontSize: "0.8rem", color: "var(--ink-2)", display: "flex", justifyContent: "space-between", marginBottom: "0.3rem" }}>
-                        <span>{n?.title ?? id}</span>
-                        <span style={{ color: "var(--green)", fontWeight: 700 }}>×{n?.signalCount}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              {coverageAnalysis.nextToValidate.length > 0 && (
-                <div className="os-card" style={{ flex: "1 1 220px", borderLeft: "3px solid var(--accent)" }}>
-                  <div style={{ fontWeight: 700, color: "var(--accent)", fontSize: "0.8rem", marginBottom: "0.5rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                    Prioridad de validación
-                  </div>
-                  {coverageAnalysis.nextToValidate.map((id, i) => {
-                    const n = coverageNodes.find((n) => n.id === id);
-                    return (
-                      <div key={id} style={{ fontSize: "0.8rem", color: "var(--ink-2)", display: "flex", gap: "0.4rem", marginBottom: "0.3rem" }}>
-                        <span style={{ color: "var(--accent)", fontWeight: 700, fontSize: "0.7rem" }}>{i + 1}.</span>
-                        {n?.title ?? id}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              <div className="os-card" style={{ flex: "1 1 260px" }}>
-                <div style={{ fontWeight: 700, fontSize: "0.8rem", color: "var(--ink)", marginBottom: "0.5rem" }}>
-                  Cobertura por objetivo
-                </div>
-                {coverageNodes.slice(0, 6).map((n) => (
-                  <div key={n.id} style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "0.45rem" }}>
-                    <span style={{ fontSize: "0.78rem", color: "var(--ink-2)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.title}</span>
-                    <div style={{ width: 60, height: 5, background: "var(--surface-2)", borderRadius: 3, flexShrink: 0 }}>
-                      <div style={{ height: "100%", width: `${Math.min(n.signalCount / 5 * 100, 100)}%`, background: n.signalCount === 0 ? "var(--red)" : n.signalCount >= 3 ? "var(--green)" : "var(--amber)", borderRadius: 3 }} />
-                    </div>
-                    <span style={{ fontSize: "0.7rem", color: "var(--ink-3)", flexShrink: 0 }}>{n.signalCount}</span>
-                  </div>
+        {coverageNodes.length > 0 && (
+          <div className="validate-coverage">
+            <div className="validate-coverage-head"><span>Objective coverage</span><strong>{Math.round(coverage * 100)}%</strong></div>
+            <div className="validate-coverage-track"><span style={{ width: `${coverage * 100}%` }} /></div>
+            <div className="validate-coverage-grid">
+              <div>
+                <span className="home-eyebrow">Blind spots</span>
+                {(intelligence?.coverage.blindSpots ?? []).slice(0, 4).map((objective) => <button key={objective.id} onClick={() => { setForm((current) => ({ ...current, objectiveId: objective.id })); setShowForm(true); }}>{objective.title}<span>Validate →</span></button>)}
+                {!intelligence?.coverage.blindSpots.length && <p>No uncovered active objective.</p>}
+              </div>
+              <div>
+                <span className="home-eyebrow">Coverage by objective</span>
+                {coverageNodes.slice(0, 6).map((node) => (
+                  <div className="validate-coverage-row" key={node.id}><span>{node.title}</span><div><i style={{ width: `${Math.min(node.signalCount / 5 * 100, 100)}%` }} /></div><strong>{node.signalCount}</strong></div>
                 ))}
-                {coverageNodes.length > 6 && <p style={{ fontSize: "0.72rem", color: "var(--ink-3)", textAlign: "center" }}>+{coverageNodes.length - 6} más</p>}
               </div>
             </div>
           </div>
         )}
 
-        {/* Log form */}
         {showForm && (
-          <form onSubmit={handleSubmit} className="os-card" style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}>
-            <h3 style={{ fontWeight: 700, fontSize: "1rem", color: "var(--ink)" }}>Registrar señal</h3>
-            <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "0.5rem", alignItems: "start" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-                {SIGNAL_TYPES.map((t) => (
-                  <button
-                    key={t.value}
-                    type="button"
-                    onClick={() => setForm({ ...form, type: t.value as SignalType })}
-                    style={{
-                      display: "flex", alignItems: "center", gap: "0.5rem",
-                      padding: "0.5rem 0.875rem", borderRadius: "0.5rem",
-                      border: form.type === t.value ? `1px solid ${t.color}` : "1px solid var(--border)",
-                      background: form.type === t.value ? `${t.color}18` : "transparent",
-                      color: form.type === t.value ? t.color : "var(--ink-3)",
-                      cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, whiteSpace: "nowrap",
-                    }}
-                  >
-                    {t.icon} {t.label}
-                  </button>
-                ))}
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-                <input className="os-input" placeholder="¿Qué observaste o mediste?" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
-                <select
-                  className="os-input"
-                  value={form.objectiveId}
-                  onChange={(e) => setForm({ ...form, objectiveId: e.target.value })}
-                >
-                  <option value="">Sin objetivo relacionado</option>
-                  {objectives.map((objective) => (
-                    <option key={objective.id} value={objective.id}>
-                      {objective.title}
-                    </option>
-                  ))}
-                </select>
-                <input className="os-input" placeholder="Hipótesis (opcional)" value={form.hypothesis} onChange={(e) => setForm({ ...form, hypothesis: e.target.value })} />
-                <input className="os-input" placeholder="Resultado (opcional)" value={form.result} onChange={(e) => setForm({ ...form, result: e.target.value })} />
-                <textarea className="os-input os-textarea" placeholder="Aprendizaje clave (opcional)" value={form.learning} onChange={(e) => setForm({ ...form, learning: e.target.value })} rows={2} />
-              </div>
+          <form onSubmit={handleSubmit} className="validate-create-panel">
+            <div className="validate-create-heading"><div><span className="home-eyebrow">Evidence contract</span><h2>Record signal</h2></div><button type="button" className="btn-ghost" onClick={() => setShowForm(false)}>Close</button></div>
+            <div className="validate-type-selector">
+              {SIGNAL_TYPES.map((type) => <button type="button" key={type.value} className={form.type === type.value ? "is-active" : ""} onClick={() => setForm({ ...form, type: type.value as SignalType })}>{type.label}</button>)}
             </div>
-            <div style={{ display: "flex", gap: "0.75rem" }}>
-              <button type="submit" className="btn-primary" disabled={saving}>{saving ? "Guardando…" : "Registrar"}</button>
-              <button type="button" className="btn-ghost" onClick={() => setShowForm(false)}>Cancelar</button>
+            <label>Observation<input className="os-input" placeholder="What did you observe or measure?" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></label>
+            <label>Build objective<select className="os-input" value={form.objectiveId} onChange={(e) => setForm({ ...form, objectiveId: e.target.value })}><option value="">Unlinked evidence</option>{objectives.map((objective) => <option key={objective.id} value={objective.id}>{objective.title}</option>)}</select></label>
+            <div className="validate-create-grid">
+              <label>Hypothesis<input className="os-input" value={form.hypothesis} onChange={(e) => setForm({ ...form, hypothesis: e.target.value })} /></label>
+              <label>Result<input className="os-input" value={form.result} onChange={(e) => setForm({ ...form, result: e.target.value })} /></label>
             </div>
+            <label>Learning<textarea className="os-input os-textarea" rows={3} value={form.learning} onChange={(e) => setForm({ ...form, learning: e.target.value })} /></label>
+            <div className="validate-create-actions"><button type="submit" className="btn-primary" disabled={saving}>{saving ? "Recording…" : "Record evidence"}</button><span>This signal will update Build coverage and VELA Intelligence.</span></div>
           </form>
         )}
 
-        {/* Signal list */}
-        {loading ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            {[0,1,2].map(i => <div key={i} style={{ height: 80, borderRadius: "0.875rem", background: "var(--surface)" }} />)}
-          </div>
-        ) : displayed.length === 0 ? (
-          <div className="os-card" style={{ textAlign: "center", padding: "2.5rem" }}>
-            <p style={{ color: "var(--ink-3)", marginBottom: "0.75rem" }}>
-              {signals.length === 0
-                ? "Todavía no hay evidencia de validación. Crea tu primer experimento, entrevista, métrica o insight."
-                : `Todavía no hay señales ${filter !== "all" ? "del tipo seleccionado" : "registradas"}.`}
-            </p>
-            <button onClick={() => setShowForm(true)} className="btn-primary">Registrar primera señal</button>
-          </div>
+        <div className="validate-log-head"><div><span className="home-eyebrow">Persisted evidence</span><h2>Signal Log</h2></div><span>{displayed.length} shown</span></div>
+        {loading ? <div className="validate-loading"><div /><div /><div /></div> : displayed.length === 0 ? (
+          <div className="validate-empty"><p>{signals.length ? "No signals match this evidence type." : "No validation evidence has been recorded yet."}</p><button className="btn-primary" onClick={openIntelligentSignal}>Record first signal</button></div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            {displayed.map((s) => {
-              const t = SIGNAL_TYPES.find((x) => x.value === s.type)!;
-              return (
-                <div key={s.id} className="os-card os-hover-lift">
-                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem" }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "0.5rem" }}>
-                        <span style={{ fontSize: "1rem" }}>{t.icon}</span>
-                        <span className={`badge ${TYPE_BADGE[s.type]}`}>{t.label}</span>
-                        <span style={{ fontSize: "0.75rem", color: "var(--ink-3)" }}>{new Date(s.createdAt).toLocaleDateString("es-MX")}</span>
-                      </div>
-                      <p style={{ fontWeight: 600, color: "var(--ink)", marginBottom: "0.35rem" }}>{s.title}</p>
-                      {s.hypothesis && <p style={{ fontSize: "0.8rem", color: "var(--ink-3)" }}><strong style={{ color: "var(--ink-2)" }}>Hipótesis:</strong> {s.hypothesis}</p>}
-                      {s.result && <p style={{ fontSize: "0.8rem", color: "var(--ink-3)", marginTop: "0.2rem" }}><strong style={{ color: "var(--ink-2)" }}>Resultado:</strong> {s.result}</p>}
-                      {s.learning && (
-                        <div style={{ marginTop: "0.5rem", padding: "0.5rem 0.75rem", background: "var(--surface-2)", borderRadius: "0.5rem", borderLeft: `3px solid ${t.color}` }}>
-                          <p style={{ fontSize: "0.8rem", color: "var(--ink-2)" }}>{s.learning}</p>
-                        </div>
-                      )}
-                    </div>
-                    {session.role !== "operador" && (
-                      <button onClick={() => deleteSignal(s.id)} style={{ color: "var(--red)", background: "none", border: "none", cursor: "pointer", fontSize: "0.78rem", flexShrink: 0 }}>Eliminar</button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+          <div className="validate-signal-list">
+            {displayed.map((signal) => (
+              <article key={signal.id} className="validate-signal">
+                <div className="validate-signal-top"><span className={`validate-signal-type type-${signal.type}`}>{signal.type}</span><span>{new Date(signal.createdAt).toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" })}</span></div>
+                <h3>{signal.title}</h3>
+                {signal.hypothesis && <p><strong>Hypothesis</strong>{signal.hypothesis}</p>}
+                {signal.result && <p><strong>Result</strong>{signal.result}</p>}
+                {signal.learning && <blockquote>{signal.learning}</blockquote>}
+                <div className="validate-signal-foot"><span>{coverageNodes.find((node) => node.id === signal.objectiveId)?.title ?? "Unlinked evidence"}</span>{session.role !== "operador" && <button onClick={() => void deleteSignal(signal.id)}>Delete</button>}</div>
+              </article>
+            ))}
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
+}
+
+function ValidateStat({ label, value, note }: { label: string; value: string | number; note: string }) {
+  return <div className="validate-stat"><span>{label}</span><strong>{value}</strong><small>{note}</small></div>;
 }
