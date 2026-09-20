@@ -363,6 +363,13 @@ h1, h2, h3, h4 { letter-spacing: -0.025em; font-weight: 700; }
 .home-trajectory-explanation { margin: 0.8rem 0 0; color: #5f6668; font-size: 0.72rem; line-height: 1.5; }
 .trajectory-factors { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.65rem; }
 .trajectory-factors span { padding: 0.25rem 0.4rem; color: #777d7f; background: #efede7; border-radius: 0.2rem; font-size: 0.58rem; }
+.home-dynamics { display: grid; grid-template-columns: auto 1fr; gap: 0.2rem 0.8rem; margin-top: 0.75rem; padding: 0.65rem 0.75rem; background: #efede7; border-left: 2px solid #7b8588; }
+.home-dynamics span { color: #6f7678; font-size: 0.56rem; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; }
+.home-dynamics strong { justify-self: end; color: #343b3e; font-size: 0.65rem; }
+.home-dynamics small { grid-column: 1 / -1; color: #777d7f; font-size: 0.6rem; line-height: 1.45; }
+.home-dynamics-accelerating, .home-dynamics-turning_positive { border-left-color: #4d8b70; }
+.home-dynamics-decelerating { border-left-color: #b88a43; }
+.home-dynamics-deteriorating, .home-dynamics-turning_negative { border-left-color: #b95e52; }
 .home-ai-kind { color: var(--status-info); }
 .home-progress { height: 7px; margin-top: 2rem; background: #313a47; border-radius: var(--radius-full); overflow: hidden; }
 .home-progress span { display: block; height: 100%; background: var(--status-success); border-radius: inherit; transition: width var(--motion-slow) ease; }
