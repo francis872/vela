@@ -37,6 +37,14 @@ type Pulse = {
       daysObserved: number | null;
       explanation: string;
       points: { capturedAt: string; velocity: number | null; validation: number | null; risk: number | null; readiness: number | null; sprintCompletion: number | null }[];
+      dynamics: {
+        status: "AVAILABLE" | "INSUFFICIENT_DATA";
+        state: "ACCELERATING" | "DECELERATING" | "DETERIORATING" | "TURNING_POSITIVE" | "TURNING_NEGATIVE" | "STEADY" | null;
+        previousVelocityPerDay: number | null;
+        recentVelocityPerDay: number | null;
+        accelerationPerDay2: number | null;
+        explanation: string;
+      };
     };
   };
   nextActions: PulseAction[];
@@ -196,6 +204,13 @@ export default function HomeDashboard({ session }: { session: Session }) {
                   })}
                 </div>
                 <p className="home-trajectory-explanation">{pulse.trajectory.history.explanation}</p>
+                {pulse.trajectory.history.dynamics.status === "AVAILABLE" && (
+                  <div className={`home-dynamics home-dynamics-${pulse.trajectory.history.dynamics.state?.toLowerCase() ?? "steady"}`}>
+                    <span>Momentum · {pulse.trajectory.history.dynamics.state?.replaceAll("_", " ")}</span>
+                    <strong>{pulse.trajectory.history.dynamics.recentVelocityPerDay !== null && pulse.trajectory.history.dynamics.recentVelocityPerDay >= 0 ? "+" : ""}{pulse.trajectory.history.dynamics.recentVelocityPerDay} pts/day recent</strong>
+                    <small>{pulse.trajectory.history.dynamics.explanation}</small>
+                  </div>
+                )}
                 <div className="trajectory-factors">{pulse.trajectory.assessment.factors.slice(0, 3).map((factor) => <span key={factor}>{factor}</span>)}</div>
               </> : <DataState status="INSUFFICIENT_DATA" explanation="VELA is collecting trajectory history." />}
             </section>
