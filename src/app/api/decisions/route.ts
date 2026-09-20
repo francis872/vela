@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { dispatchDomainEvent } from "@/lib/domain-events";
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req);
@@ -40,6 +41,7 @@ export async function POST(req: NextRequest) {
     update: { collaboration: { increment: 5 } },
   });
 
+  await dispatchDomainEvent("decision_created", { decisionId: decision.id, ownerId: session.sub });
   return NextResponse.json(decision, { status: 201 });
 }
 
@@ -67,6 +69,7 @@ export async function PATCH(req: NextRequest) {
   });
 
   const updated = await prisma.decision.update({ where: { id: decision.id }, data: { outcome } });
+  await dispatchDomainEvent("decision_outcome_recorded", { decisionId: updated.id, ownerId: session.sub });
   return NextResponse.json(updated);
 }
 
