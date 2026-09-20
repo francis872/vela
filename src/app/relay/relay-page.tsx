@@ -63,6 +63,20 @@ export default function RelayPage({ session }: { session: Session }) {
 
   useEffect(() => { void Promise.resolve().then(load); }, []);
 
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const stream = new EventSource("/api/home/events");
+    const refresh = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => void load(), 250);
+    };
+    stream.addEventListener("domain-event", refresh);
+    return () => {
+      if (timer) clearTimeout(timer);
+      stream.close();
+    };
+  }, []);
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!form.title.trim() || !form.body.trim()) return;
@@ -218,14 +232,14 @@ export default function RelayPage({ session }: { session: Session }) {
         {activeTab === "feed" && (
           <>
             {/* Sidebar filter */}
-            <div style={{ width: 200, flexShrink: 0, display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-              <div style={{ fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--ink-3)", padding: "0.5rem 0.75rem 0.25rem" }}>Filtrar por tipo</div>
-              <button type="button" onClick={() => setFilter("all")} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.6rem 0.75rem", borderRadius: "0.5rem", fontSize: "0.85rem", fontWeight: filter === "all" ? 700 : 500, color: filter === "all" ? "var(--ink)" : "var(--ink-3)", background: filter === "all" ? "var(--surface-2)" : "transparent", border: "none", cursor: "pointer", textAlign: "left" }}>
+            <aside className="relay-filter-panel">
+              <div className="relay-filter-label">Filter by signal</div>
+              <button type="button" onClick={() => setFilter("all")} className={filter === "all" ? "is-active" : ""}>
                 <span>Todos</span>
                 <span style={{ fontSize: "0.75rem", color: "var(--ink-3)" }}>{threads.length}</span>
               </button>
               {CATEGORIES.map((c) => (
-                <button key={c.value} type="button" onClick={() => setFilter(filter === c.value ? "all" : c.value)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.6rem 0.75rem", borderRadius: "0.5rem", fontSize: "0.85rem", fontWeight: filter === c.value ? 700 : 500, color: filter === c.value ? "var(--ink)" : "var(--ink-3)", background: filter === c.value ? "var(--surface-2)" : "transparent", border: "none", cursor: "pointer", textAlign: "left" }}>
+                <button key={c.value} type="button" onClick={() => setFilter(filter === c.value ? "all" : c.value)} className={filter === c.value ? "is-active" : ""}>
                   <span>{c.icon} {c.label}</span>
                   <span style={{ fontSize: "0.75rem", color: "var(--ink-3)" }}>{counts[c.value] ?? 0}</span>
                 </button>
@@ -237,10 +251,10 @@ export default function RelayPage({ session }: { session: Session }) {
                 <strong style={{ color: "var(--blue)" }}>◆ Decisión</strong> — Cuéntale al equipo qué decidiste y por qué.<br/><br/>
                 <strong style={{ color: "var(--green)" }}>★ Victoria</strong> — Celebra un hito real. Motiva al ecosistema.
               </div>
-            </div>
+            </aside>
 
             {/* Main feed */}
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "0.875rem" }}>
+            <div className="relay-feed">
               {showForm && (
                 <form onSubmit={handleSubmit} className="os-card" style={{ display: "flex", flexDirection: "column", gap: "0.875rem", border: "1px solid var(--accent)" }}>
                   <h3 style={{ fontWeight: 700, fontSize: "1rem", color: "var(--ink)" }}>Nueva publicación</h3>
@@ -298,7 +312,7 @@ export default function RelayPage({ session }: { session: Session }) {
 
         {/* ── DECISIONS TAB ── */}
         {activeTab === "decisions" && (
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "0.875rem" }}>
+          <div className="relay-decisions">
             <div className="os-card" style={{ background: "var(--surface-2)", border: "none", fontSize: "0.82rem", color: "var(--ink-2)", lineHeight: 1.65 }}>
               <strong style={{ color: "var(--ink)" }}>¿Qué es el Decision Log?</strong><br/>
               Registra las decisiones importantes de tu startup: qué decidiste, por qué, y qué resultó. Con el tiempo, este historial se convierte en tu diario estratégico y te ayuda a aprender de cada pivote.
@@ -352,7 +366,7 @@ export default function RelayPage({ session }: { session: Session }) {
 
         {/* ── RED TAB ── */}
         {activeTab === "red" && (
-          <div style={{ flex: 1, margin: "-1.5rem -2.5rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+          <div className="relay-network">
             <div className="os-card" style={{ padding: "1rem 1.25rem", background: "var(--surface-2)", border: "1px solid var(--border)", margin: "0 2.5rem" }}>
               <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "var(--ink)", marginBottom: "0.4rem" }}>Red de colaboración</div>
               <div style={{ fontSize: "0.82rem", color: "var(--ink-3)", lineHeight: 1.7 }}>
