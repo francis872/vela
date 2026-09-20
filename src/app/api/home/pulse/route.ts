@@ -6,6 +6,7 @@ import { assessExecutionRisk, assessTrajectory, assessValidationGap } from "@/li
 import { metricResult, type MetricResult } from "@/lib/functional-contracts";
 import { synthesizeHomeIntelligence } from "@/lib/home-intelligence";
 import { capturePulseSnapshot, getPulseTrend } from "@/lib/pulse-history";
+import { analyzeRootCause } from "@/lib/root-cause-intelligence";
 
 export const dynamic = "force-dynamic";
 
@@ -207,6 +208,7 @@ export async function GET(req: NextRequest) {
     commandPriority: command.priority,
   });
   const history = await getPulseTrend(ownerId);
+  const rootCause = analyzeRootCause(history.points);
 
   const ai = synthesizeHomeIntelligence({
     command,
@@ -225,6 +227,7 @@ export async function GET(req: NextRequest) {
     validationRisk,
     trajectory,
     history,
+    rootCause,
   });
 
   const phase = venture?.stage ? venture.stage : null;
@@ -235,7 +238,7 @@ export async function GET(req: NextRequest) {
     metrics,
     command,
     currentSprint,
-    trajectory: { assessment: trajectory, executionRisk, validationRisk, history },
+    trajectory: { assessment: trajectory, executionRisk, validationRisk, history, rootCause },
     nextActions,
     activity,
     activitySource: "persisted_domain_records",
