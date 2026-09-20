@@ -32,6 +32,21 @@ export type HomeIntelligenceInput = {
     status: string;
     factors: string[];
   };
+  history: {
+    status: "AVAILABLE" | "INSUFFICIENT_DATA";
+    direction: "IMPROVING" | "STABLE" | "DECLINING" | null;
+    velocityPerDay: number | null;
+    delta: number | null;
+    daysObserved: number | null;
+    dynamics: {
+      status: "AVAILABLE" | "INSUFFICIENT_DATA";
+      state: "ACCELERATING" | "DECELERATING" | "DETERIORATING" | "TURNING_POSITIVE" | "TURNING_NEGATIVE" | "STEADY" | null;
+      previousVelocityPerDay: number | null;
+      recentVelocityPerDay: number | null;
+      accelerationPerDay2: number | null;
+      explanation: string;
+    };
+  };
 };
 
 export type HomeIntelligence = {
@@ -59,6 +74,8 @@ function confidenceFromEvidence(input: HomeIntelligenceInput) {
   if (input.executionRisk.status === "AVAILABLE") sources += 1;
   if (input.validationRisk.status === "AVAILABLE") sources += 1;
   if (input.trajectory.status !== "INSUFFICIENT_DATA") sources += 1;
+  if (input.history.status === "AVAILABLE") sources += 1;
+  if (input.history.dynamics.status === "AVAILABLE") sources += 1;
 
   if (sources >= 6) return "HIGH" as const;
   if (sources >= 3) return "MEDIUM" as const;
@@ -100,6 +117,83 @@ export function synthesizeHomeIntelligence(input: HomeIntelligenceInput): HomeIn
   }
 
   const confidence = confidenceFromEvidence(input);
+  const dynamicState = input.history.dynamics.state;
+  if (input.history.status === "AVAILABLE") {
+    evidence.push(`trajectory_direction:${input.history.direction?.toLowerCase() ?? "unknown"}`);
+    if (input.history.velocityPerDay !== null) evidence.push(`trajectory_velocity_per_day:${input.history.velocityPerDay}`);
+  }
+  if (input.history.dynamics.status === "AVAILABLE" && dynamicState) {
+    evidence.push(`trajectory_dynamics:${dynamicState.toLowerCase()}`);
+    if (input.history.dynamics.accelerationPerDay2 !== null) evidence.push(`trajectory_acceleration:${input.history.dynamics.accelerationPerDay2}`);
+  }
+
+  if (dynamicState === "TURNING_NEGATIVE") {
+    tensions.unshift(input.history.dynamics.explanation);
+    return {
+      type: "STRATEGIC_INTERPRETATION",
+      title: "A negative turning point is forming.",
+      thesis: "The venture has shifted from positive operating momentum into contraction.",
+      body: `${input.history.dynamics.explanation} Protect validated work, reduce new scope and investigate which operating metric changed first.`,
+      confidence,
+      evidence: [...new Set(evidence)],
+      tensions,
+      focus: "Identify and reverse the source of the negative inflection.",
+    };
+  }
+
+  if (dynamicState === "DETERIORATING") {
+    tensions.unshift(input.history.dynamics.explanation);
+    return {
+      type: "STRATEGIC_INTERPRETATION",
+      title: "Operating momentum is deteriorating.",
+      thesis: "The current state is weaker than the historical direction, and the recent slope remains negative.",
+      body: `${input.history.dynamics.explanation} Treat this as a trend problem rather than a single weak snapshot.`,
+      confidence,
+      evidence: [...new Set(evidence)],
+      tensions,
+      focus: "Stop deterioration before optimizing for growth.",
+    };
+  }
+
+  if (dynamicState === "TURNING_POSITIVE") {
+    return {
+      type: "STRATEGIC_INTERPRETATION",
+      title: "VELA detected a positive turning point.",
+      thesis: "Recent operating evidence has reversed a previously negative trajectory.",
+      body: `${input.history.dynamics.explanation} Preserve the actions associated with the reversal and confirm that the improvement persists across the next snapshots.`,
+      confidence,
+      evidence: [...new Set(evidence)],
+      tensions,
+      focus: "Protect the behaviors driving the positive reversal.",
+    };
+  }
+
+  if (dynamicState === "DECELERATING") {
+    tensions.unshift(input.history.dynamics.explanation);
+    return {
+      type: "STRATEGIC_INTERPRETATION",
+      title: "Progress continues, but momentum is slowing.",
+      thesis: "The venture remains on a positive slope, but its rate of improvement has weakened.",
+      body: `${input.history.dynamics.explanation} Find the constraint that is absorbing additional effort before momentum reaches zero.`,
+      confidence,
+      evidence: [...new Set(evidence)],
+      tensions,
+      focus: "Recover momentum by removing the emerging constraint.",
+    };
+  }
+
+  if (dynamicState === "ACCELERATING") {
+    return {
+      type: "STRATEGIC_INTERPRETATION",
+      title: "Operating momentum is accelerating.",
+      thesis: "Recent evidence is improving faster than the previous historical window.",
+      body: `${input.history.dynamics.explanation} Avoid broadening scope prematurely; reinforce the actions producing the acceleration and validate that it is sustainable.`,
+      confidence,
+      evidence: [...new Set(evidence)],
+      tensions,
+      focus: "Sustain the drivers of acceleration without adding unnecessary scope.",
+    };
+  }
 
   if (numeric(velocity) && numeric(validation) && velocity - validation >= 20) {
     return {
