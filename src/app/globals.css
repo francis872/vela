@@ -352,6 +352,9 @@ h1, h2, h3, h4 { letter-spacing: -0.025em; font-weight: 700; }
 .home-ai-panel h2 { margin-top: 2.6rem; color: var(--text-inverse); }
 .home-panel-meta { margin: 0; color: #9ba5b5; font-size: 0.75rem; }
 .home-ai-panel p { margin: 1.25rem 0 0; color: #545a65; font-family: var(--font-geist-mono), Georgia, serif; font-size: 0.95rem; line-height: 1.55; }
+.home-ai-thesis { display: block; margin-top: 0.85rem; color: #30363b; font-size: 0.72rem; font-weight: 700; line-height: 1.5; }
+.home-ai-evidence { display: flex; flex-wrap: wrap; gap: 0.45rem 0.8rem; margin-top: 1rem; padding-top: 0.8rem; border-top: 1px solid rgba(18,20,27,0.1); color: #737a7d; font-size: 0.58rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.home-ai-tension { margin-top: 0.7rem; padding-left: 0.65rem; color: #8a5a30; border-left: 2px solid #c58a50; font-size: 0.66rem; line-height: 1.45; }
 .home-ai-kind { color: var(--status-info); }
 .home-progress { height: 7px; margin-top: 2rem; background: #313a47; border-radius: var(--radius-full); overflow: hidden; }
 .home-progress span { display: block; height: 100%; background: var(--status-success); border-radius: inherit; transition: width var(--motion-slow) ease; }
