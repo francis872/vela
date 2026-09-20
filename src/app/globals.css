@@ -1006,3 +1006,13 @@ h1, h2, h3, h4 { letter-spacing: -0.025em; font-weight: 700; }
 .venture-empty{max-width:1440px;margin:1.35rem auto 0;padding:2rem;border:1px solid #d9d5cc;background:#fbfaf6}.venture-empty h2{margin:.3rem 0;font-family:var(--font-geist-mono),Georgia,serif}.venture-empty p{max-width:620px;color:#707673;font-size:.7rem;line-height:1.6;margin-bottom:1rem}
 @media(max-width:900px){.venture-intelligence-strip,.venture-economics{grid-template-columns:1fr 1fr}.venture-profile-grid{grid-template-columns:1fr}.venture-module-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:760px){.venture-shell{padding:1rem 1rem 3rem}.venture-context,.venture-command{grid-template-columns:1fr}.venture-context-meta{justify-items:start;text-align:left}.venture-command-rail{padding:0 0 .7rem;border-right:0;border-bottom:1px solid #d8d4ca}.venture-command-action{justify-items:start}.venture-module-grid{grid-template-columns:1fr}}
+
+
+/* Decision Intelligence · Relay */
+.decision-intelligence{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1rem;align-items:center;padding:.85rem 1rem;border:1px solid #d9d5cc;background:#f3f0e8;border-left:3px solid #64777c}
+.decision-intelligence-attention{border-left-color:#b95e52}.decision-intelligence-focus{border-left-color:#b88a43}.decision-intelligence-stable{border-left-color:#4d8b70}
+.decision-intelligence strong{display:block;margin:.2rem 0;font-family:var(--font-geist-mono),Georgia,serif;font-size:.9rem}.decision-intelligence p{max-width:760px;margin:0;color:#717775;font-size:.62rem;line-height:1.5}
+.decision-health{display:grid;grid-template-columns:repeat(4,auto);gap:.35rem}.decision-health span{display:grid;gap:.15rem;min-width:68px;padding:.4rem .5rem;border-left:1px solid #d7d3ca;color:#858a86;font-size:.48rem;text-transform:uppercase}.decision-health b{color:#252b2e;font-family:var(--font-geist-mono),Georgia,serif;font-size:.85rem}
+.decision-review-field{display:grid;gap:.3rem;color:#777d79;font-size:.55rem;font-weight:700;text-transform:uppercase}.decision-contract{display:grid;gap:.15rem;margin-top:.55rem;padding:.55rem .65rem;border-left:2px solid #b88a43;background:#f5f2ea}.decision-contract span{color:#858a86;font-size:.48rem;font-weight:800;text-transform:uppercase}.decision-contract strong{font-size:.68rem}.decision-contract small{color:#858a86;font-size:.5rem}
+.decision-evidence{display:flex;flex-wrap:wrap;gap:.25rem;margin-top:.4rem}.decision-evidence span{padding:.2rem .35rem;border:1px solid #d9d5cc;color:#6f7673;font-size:.48rem}
+@media(max-width:900px){.decision-intelligence{grid-template-columns:1fr}.decision-health{grid-template-columns:1fr 1fr}}
