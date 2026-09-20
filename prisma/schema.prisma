@@ -1083,3 +1083,26 @@ model Intervention {
   @@index([ownerId, createdAt])
   @@index([deadline])
 }
+
+
+model InterventionLearning {
+  id                String   @id @default(cuid())
+  ownerId           String
+  interventionId    String   @unique
+  problemSignature  String
+  targetMetric      String
+  actionTitle       String
+  source            String
+  outcomeStatus     String
+  outcomeDelta      Float?
+  effectiveness     Float
+  confidence        String
+  lesson            String
+  evidence          String[]
+  learnedAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([ownerId, problemSignature])
+  @@index([ownerId, targetMetric])
+  @@index([ownerId, effectiveness])
+}
