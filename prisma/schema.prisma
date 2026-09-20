@@ -1052,3 +1052,34 @@ model VenturePulseSnapshot {
   @@index([ownerId, capturedAt])
   @@index([capturedAt])
 }
+
+
+model Intervention {
+  id               String   @id @default(cuid())
+  ownerId          String
+  title            String
+  hypothesis       String
+  source           String
+  sourceEvidence   String[]
+  targetMetric     String
+  baselineValue    Float?
+  targetDelta      Float?
+  deadline         DateTime?
+  status           String   @default("proposed")
+  actionTitle      String
+  actionHref       String
+  acceptedAt       DateTime?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  cancelledAt      DateTime?
+  outcomeValue     Float?
+  outcomeDelta     Float?
+  outcomeStatus    String?
+  outcomeSummary   String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([ownerId, status])
+  @@index([ownerId, createdAt])
+  @@index([deadline])
+}
