@@ -5,6 +5,34 @@ import GraphView from "./graph-view";
 
 type Session = { name: string; email: string; role: string };
 
+type BuildIntelligence = {
+  status: "ATTENTION" | "FOCUS" | "STABLE" | "SETUP";
+  title: string;
+  explanation: string;
+  focusObjectiveId: string | null;
+  focusObjectiveTitle: string | null;
+  action: { label: string; view: "board" | "graph"; filter?: string };
+  confidence: "LOW" | "MEDIUM" | "HIGH";
+  evidence: string[];
+  graph: {
+    criticalPath: string[];
+    criticalPathTitles: string[];
+    topBlockers: { id: string; title: string; downstream: number }[];
+    riskCascades: { id: string; title: string; affected: number }[];
+    hasCycle: boolean;
+  };
+  coverage: {
+    ratio: number;
+    blindSpots: { id: string; title: string; priority: number }[];
+    nextToValidate: string | null;
+  };
+  prematureWork: {
+    id: string;
+    title: string;
+    unmetDependencies: { id: string; title: string; status: string }[];
+  }[];
+};
+
 type Objective = {
   id: string;
   title: string;
@@ -36,6 +64,7 @@ const COLUMNS = ["on_track", "at_risk", "blocked", "completed"] as const;
 export default function BuildPage({ session }: { session: Session }) {
   const [objectives, setObjectives] = useState<Objective[]>([]);
   const [loading, setLoading] = useState(true);
+  const [intelligence, setIntelligence] = useState<BuildIntelligence | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState<string>("all");
@@ -51,8 +80,15 @@ export default function BuildPage({ session }: { session: Session }) {
   async function load(silent = false) {
     if (!silent) setLoading(true);
     try {
-      const res = await fetch("/api/objectives?limit=50", { cache: "no-store" });
-      if (res.ok) setObjectives(await res.json());
+      const [objectivesRes, intelligenceRes] = await Promise.all([
+        fetch("/api/objectives?limit=50", { cache: "no-store" }),
+        fetch("/api/build/intelligence", { cache: "no-store" }),
+      ]);
+      if (objectivesRes.ok) setObjectives(await objectivesRes.json());
+      if (intelligenceRes.ok) {
+        const payload = await intelligenceRes.json();
+        setIntelligence(payload.intelligence ?? null);
+      }
     } finally {
       if (!silent) setLoading(false);
     }
@@ -129,34 +165,21 @@ export default function BuildPage({ session }: { session: Session }) {
     evidence: objectives.reduce((sum, o) => sum + (o._count?.signals ?? 0), 0),
   }), [objectives]);
 
-  const buildFocus = useMemo(() => {
-    const blocked = objectives.find((o) => o.status === "blocked");
-    if (blocked) return {
-      status: "ATTENTION",
-      title: "A blocked objective is stopping execution.",
-      body: `Resolve “${blocked.title}” before adding more work. Build should reduce constraints before increasing scope.`,
-      objective: blocked,
-    };
-    const atRisk = objectives.find((o) => o.status === "at_risk");
-    if (atRisk) return {
-      status: "FOCUS",
-      title: "Execution risk is forming.",
-      body: `“${atRisk.title}” is at risk. Review its dependency, evidence and next commitment before the cycle advances.`,
-      objective: atRisk,
-    };
-    if (!objectives.length) return {
-      status: "SETUP",
-      title: "Define the first execution objective.",
-      body: "Build becomes useful when the venture has a concrete outcome to move, evidence to attach and dependencies to manage.",
-      objective: null,
-    };
-    return {
-      status: "STABLE",
-      title: "Execution is structurally clear.",
-      body: "No blocked or at-risk objective is dominant. Protect focus and complete active work before broadening scope.",
-      objective: null,
-    };
-  }, [objectives]);
+  const buildFocus = intelligence ?? {
+    status: objectives.length ? "STABLE" as const : "SETUP" as const,
+    title: objectives.length ? "Analyzing execution structure…" : "Define the first execution objective.",
+    explanation: objectives.length
+      ? "Build Intelligence is evaluating dependencies, evidence coverage and execution risk."
+      : "Build Intelligence needs a persisted objective before it can analyze execution structure.",
+    focusObjectiveId: null,
+    focusObjectiveTitle: null,
+    action: { label: objectives.length ? "Review board" : "Create objective", view: "board" as const },
+    confidence: "LOW" as const,
+    evidence: [],
+    graph: { criticalPath: [], criticalPathTitles: [], topBlockers: [], riskCascades: [], hasCycle: false },
+    coverage: { ratio: 0, blindSpots: [], nextToValidate: null },
+    prematureWork: [],
+  };
 
   const displayed = filter === "all" ? objectives : objectives.filter((o) => o.status === filter);
 
@@ -177,27 +200,50 @@ export default function BuildPage({ session }: { session: Session }) {
 
       <section className={`build-command build-command-${buildFocus.status.toLowerCase()}`}>
         <div className="build-command-rail">
-          <span className="home-eyebrow">Build Today</span>
+          <span className="home-eyebrow">Build Intelligence</span>
           <span className="build-command-status">{buildFocus.status}</span>
         </div>
         <div>
           <span className="build-command-kicker">Execution focus</span>
           <h2>{buildFocus.title}</h2>
-          <p>{buildFocus.body}</p>
+          <p>{buildFocus.explanation}</p>
         </div>
         <div className="build-command-action">
-          {buildFocus.objective ? (
-            <button className="btn-primary" onClick={() => setFilter(buildFocus.objective!.status)}>
-              Review objective <span aria-hidden="true">→</span>
-            </button>
-          ) : (
-            <button className="btn-primary" onClick={() => setShowForm(true)}>
-              New objective <span aria-hidden="true">→</span>
-            </button>
-          )}
-          <small>Derived from persisted objective state</small>
+          <button className="btn-primary" onClick={() => {
+            setActiveTab(buildFocus.action.view);
+            if (buildFocus.action.filter) setFilter(buildFocus.action.filter);
+            if (buildFocus.status === "SETUP") setShowForm(true);
+          }}>
+            {buildFocus.action.label} <span aria-hidden="true">→</span>
+          </button>
+          <small>{buildFocus.confidence} confidence · deterministic evidence</small>
         </div>
       </section>
+
+      {intelligence && objectives.length > 0 && (
+        <section className="build-intelligence-detail">
+          <div className="build-intelligence-stat">
+            <span>Evidence coverage</span>
+            <strong>{Math.round(intelligence.coverage.ratio * 100)}%</strong>
+            <small>{intelligence.coverage.blindSpots.length} blind spot(s)</small>
+          </div>
+          <div className="build-intelligence-stat">
+            <span>Critical path</span>
+            <strong>{intelligence.graph.criticalPath.length || "—"}</strong>
+            <small>{intelligence.graph.criticalPathTitles.slice(0, 2).join(" → ") || "No dependency chain"}</small>
+          </div>
+          <div className="build-intelligence-stat">
+            <span>Top blocker</span>
+            <strong>{intelligence.graph.topBlockers[0]?.downstream ?? 0}</strong>
+            <small>{intelligence.graph.topBlockers[0]?.title ?? "No downstream blocker"}</small>
+          </div>
+          <div className="build-intelligence-stat">
+            <span>Not ready</span>
+            <strong>{intelligence.prematureWork.length}</strong>
+            <small>Objectives with unmet prerequisites</small>
+          </div>
+        </section>
+      )}
 
       <section className="build-pulse" aria-labelledby="build-pulse-title">
         <div className="home-section-heading">
