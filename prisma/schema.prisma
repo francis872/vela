@@ -1032,3 +1032,23 @@ model EngagementMetric {
   @@index([ventureId])
   @@index([cohortId])
 }
+
+
+model VenturePulseSnapshot {
+  id               String   @id @default(cuid())
+  ownerId          String
+  bucket           String
+  velocity         Int?
+  validation       Int?
+  risk             Int?
+  readiness        Int?
+  sprintCompletion Int?
+  trajectoryStatus String
+  commandStatus    String
+  commandPriority  String
+  capturedAt       DateTime @default(now())
+
+  @@unique([ownerId, bucket])
+  @@index([ownerId, capturedAt])
+  @@index([capturedAt])
+}
