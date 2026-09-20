@@ -29,6 +29,13 @@ type Pulse = {
     assessment: { status: string; factors: string[] };
     executionRisk: { status: string; level: string | null; factors: string[] };
     validationRisk: { status: string; level: string | null; factors: string[] };
+    rootCause: {
+      status: "AVAILABLE" | "INSUFFICIENT_DATA" | "NO_DOMINANT_CAUSE";
+      primary: { metric: string; label: string; direction: string; delta: number; velocityPerDay: number; firstMeaningfulChangeAt: string; leadHours: number | null; impact: number } | null;
+      contributors: { metric: string; label: string; direction: string; delta: number; velocityPerDay: number; firstMeaningfulChangeAt: string; leadHours: number | null; impact: number }[];
+      explanation: string;
+      confidence: "LOW" | "MEDIUM" | "HIGH";
+    };
     history: {
       status: "AVAILABLE" | "INSUFFICIENT_DATA";
       direction: "IMPROVING" | "STABLE" | "DECLINING" | null;
@@ -209,6 +216,15 @@ export default function HomeDashboard({ session }: { session: Session }) {
                     <span>Momentum · {pulse.trajectory.history.dynamics.state?.replaceAll("_", " ")}</span>
                     <strong>{pulse.trajectory.history.dynamics.recentVelocityPerDay !== null && pulse.trajectory.history.dynamics.recentVelocityPerDay >= 0 ? "+" : ""}{pulse.trajectory.history.dynamics.recentVelocityPerDay} pts/day recent</strong>
                     <small>{pulse.trajectory.history.dynamics.explanation}</small>
+                  </div>
+                )}
+                {pulse.trajectory.rootCause.status === "AVAILABLE" && pulse.trajectory.rootCause.primary && (
+                  <div className="home-root-cause">
+                    <div><span>Likely driver</span><strong>{pulse.trajectory.rootCause.primary.label}</strong></div>
+                    <div><span>Change</span><strong>{pulse.trajectory.rootCause.primary.delta} pts</strong></div>
+                    <div><span>Confidence</span><strong>{pulse.trajectory.rootCause.confidence}</strong></div>
+                    <p>{pulse.trajectory.rootCause.explanation}</p>
+                    {pulse.trajectory.rootCause.contributors.length > 0 && <small>Following signals · {pulse.trajectory.rootCause.contributors.map((item) => item.label).join(" · ")}</small>}
                   </div>
                 )}
                 <div className="trajectory-factors">{pulse.trajectory.assessment.factors.slice(0, 3).map((factor) => <span key={factor}>{factor}</span>)}</div>
