@@ -134,18 +134,64 @@ export default function RelayPage({ session }: { session: Session }) {
     return acc;
   }, {} as Record<string, number>);
 
+  const blockers = counts.blocker ?? 0;
+  const pendingDecisions = decisions.filter((d) => !d.outcome).length;
+  const relayStatus = blockers > 0 ? "ATTENTION" : pendingDecisions > 0 ? "FOCUS" : threads.length || decisions.length ? "STABLE" : "SETUP";
+  const relayTitle = blockers > 0
+    ? "Collaboration is being constrained by open blockers."
+    : pendingDecisions > 0
+      ? "Decisions are waiting for outcome evidence."
+      : threads.length || decisions.length
+        ? "The collaboration loop is active."
+        : "Create the first shared operating signal.";
+  const relayExplanation = blockers > 0
+    ? `${blockers} blocker(s) are visible in Relay. Resolve or route them before they become silent execution debt.`
+    : pendingDecisions > 0
+      ? `${pendingDecisions} decision(s) still have no recorded outcome. Close the learning loop by documenting what happened.`
+      : "Updates, decisions and collaboration signals are available without a dominant unresolved constraint.";
+
   return (
-    <div className="os-reveal" style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
-      <div className="os-page-header">
+    <div className="relay-shell">
+      <header className="relay-context">
         <div>
-          <div className="os-page-title">Relay</div>
-          <div className="os-page-sub">El espacio donde los founders del ecosistema Vela comparten actualizaciones, victorias, bloqueos y decisiones clave.</div>
+          <span className="home-eyebrow">Collaboration system</span>
+          <h1>Relay</h1>
+          <p>Coordinate operating updates, blockers, decisions and ecosystem relationships in one shared execution layer.</p>
         </div>
-        {activeTab === "feed" && <button onClick={() => setShowForm(true)} className="btn-primary">+ Publicar</button>}
-        {activeTab === "decisions" && <button onClick={() => setShowDecForm(true)} className="btn-primary">+ Registrar decisión</button>}      </div>
+        <div className="relay-context-meta">
+          <span className="home-eyebrow">Operator</span>
+          <strong>{session.name}</strong>
+          <small>{threads.length} signals · {decisions.length} decisions</small>
+        </div>
+      </header>
+
+      <section className={`relay-command relay-command-${relayStatus.toLowerCase()}`}>
+        <div className="relay-command-rail">
+          <span className="home-eyebrow">Relay Pulse</span>
+          <span className="relay-command-status">{relayStatus}</span>
+        </div>
+        <div>
+          <span className="relay-command-kicker">{blockers ? "Open blockers" : pendingDecisions ? "Decision learning" : "Collaboration health"}</span>
+          <h2>{relayTitle}</h2>
+          <p>{relayExplanation}</p>
+        </div>
+        <div className="relay-command-action">
+          <button className="btn-primary" onClick={() => blockers ? setFilter("blocker") : pendingDecisions ? setActiveTab("decisions") : setShowForm(true)}>
+            {blockers ? "Review blockers" : pendingDecisions ? "Review decisions" : "Publish update"} <span aria-hidden="true">→</span>
+          </button>
+          <small>Derived from persisted collaboration activity</small>
+        </div>
+      </section>
+
+      <section className="relay-intelligence-strip">
+        <RelayStat label="Updates" value={counts.update ?? 0} note="operating signals" />
+        <RelayStat label="Blockers" value={blockers} note="need collaboration" />
+        <RelayStat label="Decisions" value={decisions.length} note={`${pendingDecisions} awaiting outcome`} />
+        <RelayStat label="Wins" value={counts.win ?? 0} note="completed milestones" />
+      </section>
 
       {/* Tab bar */}
-      <div style={{ padding: "0 2.5rem", display: "flex", gap: "0.25rem", borderBottom: "1px solid var(--border)" }}>
+      <div className="relay-tabs">
         {([
           { id: "feed", label: "Feed Relay", count: threads.length },
           { id: "decisions", label: "Decision Log", count: decisions.length },
@@ -156,14 +202,7 @@ export default function RelayPage({ session }: { session: Session }) {
             type="button"
             onClick={() => setActiveTab(tab.id)}
             aria-current={activeTab === tab.id ? "page" : undefined}
-            style={{
-              padding: "0.75rem 1.25rem", fontSize: "0.85rem", fontWeight: activeTab === tab.id ? 700 : 500,
-              color: activeTab === tab.id ? "var(--ink)" : "var(--ink-3)",
-              background: "none", border: "none", cursor: "pointer",
-              borderBottom: activeTab === tab.id ? "2px solid var(--accent)" : "2px solid transparent",
-              transition: "color 0.15s, border-color 0.15s",
-              display: "flex", alignItems: "center", gap: "0.5rem",
-            }}
+            className={activeTab === tab.id ? "is-active" : ""}
           >
             {tab.label}
             {tab.count !== null && (
@@ -173,7 +212,7 @@ export default function RelayPage({ session }: { session: Session }) {
         ))}
       </div>
 
-      <div style={{ padding: "1.5rem 2.5rem", flex: 1, display: "flex", gap: "1.5rem" }}>
+      <div className="relay-workspace">
 
         {/* ── FEED TAB ── */}
         {activeTab === "feed" && (
@@ -330,4 +369,8 @@ export default function RelayPage({ session }: { session: Session }) {
       </div>
     </div>
   );
+}
+
+function RelayStat({ label, value, note }: { label: string; value: string | number; note: string }) {
+  return <div className="relay-stat"><span>{label}</span><strong>{value}</strong><small>{note}</small></div>;
 }
