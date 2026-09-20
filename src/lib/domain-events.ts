@@ -1,3 +1,5 @@
+import { appendDomainEvent } from "@/lib/event-store";
+
 export type DomainEventMap = {
   objective_created: { objectiveId: string; ownerId: string };
   objective_updated: { objectiveId: string; ownerId: string };
@@ -6,6 +8,13 @@ export type DomainEventMap = {
   interview_created: { signalId: string; ownerId: string; objectiveId: string | null };
   metric_recorded: { signalId: string; ownerId: string; objectiveId: string | null };
   capital_evaluated: { ownerId: string; readiness: number | null };
+  decision_created: { decisionId: string; ownerId: string };
+  decision_outcome_recorded: { decisionId: string; ownerId: string };
+  gate_created: { gateId: string; ownerId: string };
+  gate_updated: { gateId: string; ownerId: string; status: string };
+  intervention_started: { interventionId: string; ownerId: string; targetMetric: string };
+  intervention_completed: { interventionId: string; ownerId: string; outcomeStatus: string | null };
+  learning_created: { learningId: string; interventionId: string; ownerId: string; outcomeStatus: string };
 };
 
 export type DomainEventName = keyof DomainEventMap;
@@ -43,6 +52,19 @@ export async function dispatchDomainEvent<Name extends DomainEventName>(
     occurredAt: new Date().toISOString(),
     payload,
   } as DomainEvent<Name>;
+  const ownerId = "ownerId" in payload && typeof payload.ownerId === "string" ? payload.ownerId : null;
+  if (ownerId) {
+    const idEntry = Object.entries(payload).find(([key, value]) => key.endsWith("Id") && key !== "ownerId" && typeof value === "string");
+    await appendDomainEvent({
+      ownerId,
+      name,
+      aggregate: idEntry ? idEntry[0].replace(/Id$/, "") : null,
+      aggregateId: idEntry ? String(idEntry[1]) : null,
+      payload,
+      occurredAt: event.occurredAt,
+    });
+  }
+
   for (const handler of (handlers[name] ?? []) as EventHandler<Name>[]) {
     await handler(event);
   }
