@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { collectVentureStats } from "@/lib/venture-metrics";
 import { assessExecutionRisk, assessTrajectory, assessValidationGap } from "@/lib/predictions";
 import { metricResult, type MetricResult } from "@/lib/functional-contracts";
+import { synthesizeHomeIntelligence } from "@/lib/home-intelligence";
 
 export const dynamic = "force-dynamic";
 
@@ -189,6 +190,24 @@ export async function GET(req: NextRequest) {
                     affectedMetric: "Venture Pulse",
                   };
 
+  const ai = synthesizeHomeIntelligence({
+    command,
+    metrics: {
+      velocity: velocityValue,
+      validation: validationValue,
+      risk: typeof metrics.risk.value === "number" ? metrics.risk.value : null,
+      readiness: typeof metrics.readiness.value === "number" ? metrics.readiness.value : null,
+    },
+    sprint: currentSprint ? {
+      status: currentSprint.status,
+      totalItems: currentSprint.items.length,
+      completedItems: currentSprint.items.filter((item) => item.done).length,
+    } : null,
+    executionRisk,
+    validationRisk,
+    trajectory,
+  });
+
   const phase = venture?.stage ? venture.stage : null;
   return NextResponse.json({
     venture,
@@ -201,6 +220,6 @@ export async function GET(req: NextRequest) {
     nextActions,
     activity,
     activitySource: "persisted_domain_records",
-    ai: nextActions[0] ? { type: "RECOMMENDATION", title: nextActions[0].title, body: nextActions[0].reason, evidence: nextActions[0].id } : { type: "OBSERVATION", title: "No immediate blocker detected", body: "Add operational evidence to make VELA's recommendations more specific.", evidence: "objectives_signals_sprints" },
+    ai,
   });
 }
