@@ -57,6 +57,13 @@ type Pulse = {
   nextActions: PulseAction[];
   interventions: { id: string; title: string; targetMetric: string; status: string; outcomeStatus: string | null; outcomeDelta: number | null; actionHref: string; deadline: string | null }[];
   interventionProposal: { title: string; hypothesis: string; source: string; sourceEvidence: string[]; targetMetric: string; baselineValue: number | null; targetDelta: number; deadlineDays: number; actionTitle: string; actionHref: string };
+  learningMemory: {
+    status: "AVAILABLE" | "INSUFFICIENT_DATA";
+    explanation: string;
+    recommendation: { actionTitle: string; effectiveness: number; confidence: string; lesson: string } | null;
+    avoidedAction: { actionTitle: string; effectiveness: number; confidence: string; lesson: string } | null;
+    memories: { id: string; actionTitle: string; outcomeStatus: string; effectiveness: number; confidence: string; lesson: string }[];
+  };
   activity: Activity[];
   ai: {
     type: "STRATEGIC_INTERPRETATION" | "OBSERVATION";
@@ -185,6 +192,15 @@ export default function HomeDashboard({ session }: { session: Session }) {
           <button type="button" className="btn-secondary" onClick={acceptIntervention} disabled={creatingIntervention}>
             {creatingIntervention ? "Creating…" : "Start intervention"}
           </button>
+          {pulse.learningMemory?.status === "AVAILABLE" && (
+            <div className="home-learning-memory">
+              <span className="home-eyebrow">VELA Learning Memory</span>
+              <strong>{pulse.learningMemory.recommendation ? `Learned response · ${pulse.learningMemory.recommendation.actionTitle}` : "Prior outcomes found"}</strong>
+              <p>{pulse.learningMemory.explanation}</p>
+              {pulse.learningMemory.recommendation && <small>{pulse.learningMemory.recommendation.lesson}</small>}
+              {pulse.learningMemory.avoidedAction && <small>Avoid repeating · {pulse.learningMemory.avoidedAction.actionTitle}</small>}
+            </div>
+          )}
           {pulse.interventions?.[0] && (
             <div className="home-intervention-active">
               <span>Latest · {pulse.interventions[0].status}</span>
