@@ -6,6 +6,16 @@ import type { CapitalReadinessResponse } from "@/lib/functional-contracts";
 
 type Session = { name: string; email: string; role: string };
 
+type CapitalIntelligence = {
+  status: "ATTENTION" | "FOCUS" | "STABLE" | "SETUP";
+  title: string;
+  explanation: string;
+  action: { label: string; href: string };
+  confidence: "LOW" | "MEDIUM" | "HIGH";
+  focus: string;
+  evidence: string[];
+};
+
 type Gate = {
   id: string;
   name: string;
@@ -37,30 +47,36 @@ export default function CapitalPage({ session }: { session: Session }) {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [intelligence, setIntelligence] = useState<CapitalIntelligence | null>(null);
 
   const [form, setForm] = useState({ name: "", stage: "Discovery", criteria: "" });
 
   async function load() {
-    const [gatesRes, readinessRes] = await Promise.all([
-      fetch("/api/gates?limit=30"),
-      fetch("/api/capital/readiness"),
+    const [gatesRes, readinessRes, intelligenceRes] = await Promise.all([
+      fetch("/api/gates?limit=30", { cache: "no-store" }),
+      fetch("/api/capital/readiness", { cache: "no-store" }),
+      fetch("/api/capital/intelligence", { cache: "no-store" }),
     ]);
     if (gatesRes.ok) setGates(await gatesRes.json());
     if (readinessRes.ok) setReadinessData((await readinessRes.json()) as CapitalReadinessResponse);
+    if (intelligenceRes.ok) {
+      const payload = await intelligenceRes.json();
+      setIntelligence(payload.intelligence ?? null);
+    }
     setLoading(false);
   }
 
+  useEffect(() => { void load().catch(() => setLoading(false)); }, []);
+
   useEffect(() => {
-    Promise.all([
-      fetch("/api/gates?limit=30"),
-      fetch("/api/capital/readiness"),
-    ])
-      .then(async ([gatesRes, readinessRes]) => {
-        if (gatesRes.ok) setGates(await gatesRes.json());
-        if (readinessRes.ok) setReadinessData((await readinessRes.json()) as CapitalReadinessResponse);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const stream = new EventSource("/api/home/events");
+    const refresh = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => void load(), 250);
+    };
+    stream.addEventListener("domain-event", refresh);
+    return () => { if (timer) clearTimeout(timer); stream.close(); };
   }, []);
 
   async function handleCreate(e: FormEvent) {
@@ -97,16 +113,44 @@ export default function CapitalPage({ session }: { session: Session }) {
   }, {} as Record<string, Gate[]>);
 
   return (
-    <div className="os-reveal" style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
-      <div className="os-page-header">
+    <div className="capital-shell">
+      <header className="capital-context">
         <div>
-          <div className="os-page-title">Capital</div>
-          <div className="os-page-sub">Gates de fundación y readiness para levantar capital</div>
+          <span className="home-eyebrow">Capital system</span>
+          <h1>Capital</h1>
+          <p>Translate validation, execution reliability and explicit gates into an evidence-backed capital readiness system.</p>
         </div>
-        {canEdit && <button onClick={() => setShowForm(true)} className="btn-primary">+ Nuevo gate</button>}
-      </div>
+        <div className="capital-context-meta">
+          <span className="home-eyebrow">Readiness</span>
+          <strong>{readiness === null || readiness === undefined ? "Insufficient data" : `${readiness}%`}</strong>
+          <small>{passed}/{gates.length} gate(s) passed</small>
+        </div>
+      </header>
 
-      <div style={{ padding: "1.5rem 2.5rem", flex: 1, display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+      <section className={`capital-command capital-command-${(intelligence?.status ?? "SETUP").toLowerCase()}`}>
+        <div className="capital-command-rail">
+          <span className="home-eyebrow">Capital Intelligence</span>
+          <span className="capital-command-status">{intelligence?.status ?? "SETUP"}</span>
+        </div>
+        <div>
+          <span className="capital-command-kicker">{intelligence?.focus ?? "Evidence Base"}</span>
+          <h2>{intelligence?.title ?? "Build the evidence required for capital readiness."}</h2>
+          <p>{intelligence?.explanation ?? "VELA needs operating and market evidence before it can assess capital readiness."}</p>
+        </div>
+        <div className="capital-command-action">
+          <Link className="btn-primary" href={intelligence?.action.href ?? "/build"}>{intelligence?.action.label ?? "Build evidence"} <span aria-hidden="true">→</span></Link>
+          <small>{intelligence?.confidence ?? "LOW"} confidence · evidence grounded</small>
+        </div>
+      </section>
+
+      <section className="capital-intelligence-strip">
+        <CapitalStat label="Readiness" value={readiness === null || readiness === undefined ? "—" : `${readiness}%`} note="evidence-weighted" />
+        <CapitalStat label="Passed gates" value={passed} note={`of ${gates.length} defined`} />
+        <CapitalStat label="Market evidence" value={(readinessData?.evidence.signals.interviews ?? 0) + (readinessData?.evidence.signals.metrics ?? 0)} note="interviews + metrics" />
+        <CapitalStat label="Execution proof" value={readinessData?.evidence.sprints.completed ?? 0} note="completed Sprints" />
+      </section>
+
+      <div className="capital-workspace">
 
         {/* Readiness gauge */}
         <div className="os-card-accent" style={{ display: "flex", alignItems: "center", gap: "2rem", flexWrap: "wrap" }}>
@@ -227,4 +271,8 @@ export default function CapitalPage({ session }: { session: Session }) {
       </div>
     </div>
   );
+}
+
+function CapitalStat({ label, value, note }: { label: string; value: string | number; note: string }) {
+  return <div className="capital-stat"><span>{label}</span><strong>{value}</strong><small>{note}</small></div>;
 }
