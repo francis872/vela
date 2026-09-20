@@ -907,3 +907,34 @@ h1, h2, h3, h4 { letter-spacing: -0.025em; font-weight: 700; }
 .capital-workspace { display: flex; flex-direction: column; gap: 1.5rem; max-width: 1440px; margin: 1.4rem auto 0; padding-top: 1rem; border-top: 1px solid #d9d5cc; }
 @media (max-width: 900px) { .capital-intelligence-strip { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 760px) { .capital-shell { padding: 1rem 1rem 3rem; } .capital-context, .capital-command { grid-template-columns: 1fr; } .capital-context-meta { justify-items: start; text-align: left; } .capital-command-rail { padding: 0 0 .7rem; border-right: 0; border-bottom: 1px solid #d8d4ca; } .capital-command-action { justify-items: start; } }
+
+
+/* ── Relay · VELA collaboration workspace ───────────────────────────────── */
+.relay-shell { min-height: 100vh; padding: 2rem 2.5rem 4rem; background: #f8f6f0; color: #252b2e; }
+.relay-context { display: grid; grid-template-columns: minmax(0,1.5fr) minmax(230px,.5fr); gap: 2rem; align-items: end; max-width: 1440px; margin: 0 auto; padding: 1rem 0 1.6rem; border-bottom: 1px solid #d9d5cc; }
+.relay-context h1 { margin: .25rem 0 .45rem; font-family: var(--font-geist-mono), Georgia, serif; font-size: clamp(2.3rem,4vw,4.4rem); font-weight: 500; letter-spacing: -.055em; line-height: .95; }
+.relay-context p { max-width: 720px; margin: 0; color: #666d6f; font-size: .82rem; line-height: 1.6; }
+.relay-context-meta { display: grid; gap: .25rem; justify-items: end; text-align: right; }
+.relay-context-meta strong { font-size: .78rem; } .relay-context-meta small { color: #7a807f; font-size: .62rem; }
+.relay-command { display: grid; grid-template-columns: 160px minmax(0,1fr) auto; gap: 1.5rem; align-items: center; max-width: 1440px; margin: 1.25rem auto 0; padding: 1.15rem 1.25rem; border: 1px solid #d8d4ca; background: #f2efe7; }
+.relay-command-attention { border-left: 3px solid #b95e52; } .relay-command-focus { border-left: 3px solid #b88a43; } .relay-command-stable { border-left: 3px solid #4d8b70; } .relay-command-setup { border-left: 3px solid #64777c; }
+.relay-command-rail { display: grid; gap: .35rem; align-self: stretch; align-content: center; padding-right: 1rem; border-right: 1px solid #d8d4ca; }
+.relay-command-status { font-size: .6rem; font-weight: 800; letter-spacing: .1em; }
+.relay-command-kicker { color: #858a88; font-size: .55rem; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+.relay-command h2 { margin: .2rem 0 .35rem; font-family: var(--font-geist-mono), Georgia, serif; font-size: 1.05rem; font-weight: 600; letter-spacing: -.025em; }
+.relay-command p { max-width: 780px; margin: 0; color: #626968; font-size: .7rem; line-height: 1.55; }
+.relay-command-action { display: grid; gap: .35rem; justify-items: end; } .relay-command-action small { color: #8a8e8a; font-size: .53rem; }
+.relay-intelligence-strip { display: grid; grid-template-columns: repeat(4,1fr); max-width: 1440px; margin: .65rem auto 0; border: 1px solid #d9d5cc; background: #ece9e1; }
+.relay-stat { display: grid; gap: .22rem; min-height: 78px; padding: .65rem .8rem; border-right: 1px solid #d9d5cc; }
+.relay-stat:last-child { border-right: 0; } .relay-stat span { color: #818682; font-size: .5rem; font-weight: 800; letter-spacing: .075em; text-transform: uppercase; }
+.relay-stat strong { font-family: var(--font-geist-mono), Georgia, serif; font-size: 1.15rem; font-weight: 500; } .relay-stat small { color: #858a86; font-size: .53rem; }
+.relay-tabs { display: flex; gap: .25rem; max-width: 1440px; margin: 1.35rem auto 0; border-bottom: 1px solid #d9d5cc; }
+.relay-tabs button { display: flex; align-items: center; gap: .5rem; padding: .65rem .8rem; border: 0; border-bottom: 1px solid transparent; background: transparent; color: #777d79; cursor: pointer; font-size: .62rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.relay-tabs button.is-active { color: #252b2e; border-bottom-color: #252b2e; }
+.relay-tabs button span { padding: .08rem .35rem; background: #ebe7df !important; border-radius: 10px !important; color: #858a86 !important; font-size: .52rem !important; }
+.relay-workspace { display: flex; flex: 1; gap: 1.5rem; max-width: 1440px; margin: 0 auto; padding: 1.25rem 0; }
+.relay-workspace .os-card { border-radius: 0; border-color: #ddd9d0; background: #fbfaf6; box-shadow: none; }
+.relay-workspace .os-card-accent { border-radius: 0; }
+.relay-workspace .os-hover-lift:hover { transform: translateY(-1px); }
+@media (max-width: 900px) { .relay-intelligence-strip { grid-template-columns: 1fr 1fr; } .relay-workspace { flex-direction: column; } }
+@media (max-width: 760px) { .relay-shell { padding: 1rem 1rem 3rem; } .relay-context, .relay-command { grid-template-columns: 1fr; } .relay-context-meta { justify-items: start; text-align: left; } .relay-command-rail { padding: 0 0 .7rem; border-right: 0; border-bottom: 1px solid #d8d4ca; } .relay-command-action { justify-items: start; } .relay-tabs { overflow-x: auto; } }
