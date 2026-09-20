@@ -28,7 +28,16 @@ type Pulse = {
   trajectory: { assessment: { status: string; factors: string[] }; executionRisk: { status: string; level: string | null; factors: string[] }; validationRisk: { status: string; level: string | null; factors: string[] } };
   nextActions: PulseAction[];
   activity: Activity[];
-  ai: { type: string; title: string; body: string; evidence: string };
+  ai: {
+    type: "STRATEGIC_INTERPRETATION" | "OBSERVATION";
+    title: string;
+    body: string;
+    thesis: string;
+    confidence: "LOW" | "MEDIUM" | "HIGH";
+    evidence: string[];
+    tensions: string[];
+    focus: string;
+  };
 };
 
 const phaseLabels = ["idea", "validation", "traction", "growth"];
@@ -138,10 +147,21 @@ export default function HomeDashboard({ session }: { session: Session }) {
               </> : <DataState status="INSUFFICIENT_DATA" explanation="Create a Sprint to establish an execution cadence." action={{ label: "Planear", href: "/engine" }} />}
             </section>
             <section className="home-ai-panel" aria-labelledby="ai-title">
-              <div className="home-panel-label"><span>VELA AI</span><span className="home-ai-kind">{pulse?.ai.type ?? "OBSERVATION"}</span></div>
+              <div className="home-panel-label">
+                <span>VELA Intelligence</span>
+                <span className="home-ai-kind">{pulse?.ai.type === "STRATEGIC_INTERPRETATION" ? "INTERPRETATION" : "OBSERVATION"}</span>
+              </div>
               <h2 id="ai-title">{pulse?.ai.title ?? "Strategic insight, not noise."}</h2>
-              <p>{pulse?.ai.body ?? "Add operational evidence for a more specific recommendation."}</p>
-              {pulse?.ai.evidence && <span className="home-panel-meta">Evidence: {pulse.ai.evidence}</span>}
+              {pulse?.ai.thesis && <strong className="home-ai-thesis">{pulse.ai.thesis}</strong>}
+              <p>{pulse?.ai.body ?? "Add operational evidence for a more specific interpretation."}</p>
+              {pulse?.ai && (
+                <div className="home-ai-evidence">
+                  <span>Focus · {pulse.ai.focus}</span>
+                  <span>Confidence · {pulse.ai.confidence}</span>
+                  <span>Evidence · {pulse.ai.evidence.length} signals</span>
+                </div>
+              )}
+              {pulse?.ai.tensions?.[0] && <div className="home-ai-tension">Tension · {pulse.ai.tensions[0]}</div>}
             </section>
           </div>
 
