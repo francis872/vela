@@ -9,6 +9,7 @@ import { capturePulseSnapshot, getPulseTrend } from "@/lib/pulse-history";
 import { analyzeRootCause } from "@/lib/root-cause-intelligence";
 import { listInterventions, proposeIntervention, updateInterventionOutcomes } from "@/lib/intervention-engine";
 import { consolidateLearningMemory, recallLearning } from "@/lib/learning-memory";
+import { consolidateDecisionLearning, recallDecisionLearning } from "@/lib/decision-learning-memory";
 
 export const dynamic = "force-dynamic";
 
@@ -220,6 +221,7 @@ export async function GET(req: NextRequest) {
   };
   await updateInterventionOutcomes(ownerId, interventionMetrics);
   await consolidateLearningMemory(ownerId);
+  await consolidateDecisionLearning(ownerId);
   const interventions = await listInterventions(ownerId);
   const baseInterventionProposal = proposeIntervention({ command, rootCause, metrics: interventionMetrics });
   const learningMemory = await recallLearning(ownerId, {
@@ -236,6 +238,12 @@ export async function GET(req: NextRequest) {
       effectiveness: learningMemory.recommendation.effectiveness,
       confidence: learningMemory.recommendation.confidence,
     } : null,
+  });
+
+  const decisionMemory = await recallDecisionLearning(ownerId, {
+    evidence: command.evidence,
+    focus: command.affectedMetric,
+    commandTitle: command.title,
   });
 
   const ai = synthesizeHomeIntelligence({
@@ -256,6 +264,7 @@ export async function GET(req: NextRequest) {
     trajectory,
     history,
     rootCause,
+    decisionMemory,
   });
 
   const phase = venture?.stage ? venture.stage : null;
@@ -271,6 +280,7 @@ export async function GET(req: NextRequest) {
     interventions,
     interventionProposal,
     learningMemory,
+    decisionMemory,
     activity,
     activitySource: "persisted_domain_records",
     ai,
