@@ -10,6 +10,7 @@ export type DomainEventMap = {
   capital_evaluated: { ownerId: string; readiness: number | null };
   decision_created: { decisionId: string; ownerId: string };
   decision_outcome_recorded: { decisionId: string; ownerId: string };
+  decision_learning_consolidated: { decisionId: string; ownerId: string; outcomeStatus: string };
   gate_created: { gateId: string; ownerId: string };
   gate_updated: { gateId: string; ownerId: string; status: string };
   intervention_started: { interventionId: string; ownerId: string; targetMetric: string };
