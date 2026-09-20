@@ -111,6 +111,25 @@ export default function HomeDashboard({ session }: { session: Session }) {
       .catch(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    const stream = new EventSource("/api/home/events");
+
+    const refreshPulse = () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(async () => {
+        const response = await fetch("/api/home/pulse", { cache: "no-store" });
+        if (response.ok) setPulse(await response.json());
+      }, 250);
+    };
+
+    stream.addEventListener("domain-event", refreshPulse);
+    return () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      stream.close();
+    };
+  }, []);
+
   async function acceptIntervention() {
     if (!pulse?.interventionProposal || creatingIntervention) return;
     setCreatingIntervention(true);
