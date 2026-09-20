@@ -1106,3 +1106,19 @@ model InterventionLearning {
   @@index([ownerId, targetMetric])
   @@index([ownerId, effectiveness])
 }
+
+
+model DomainEventRecord {
+  id         String   @id @default(cuid())
+  ownerId    String
+  name       String
+  aggregate  String?
+  aggregateId String?
+  payload    String   @db.Text
+  occurredAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([ownerId, occurredAt])
+  @@index([name, occurredAt])
+  @@index([aggregate, aggregateId])
+}
