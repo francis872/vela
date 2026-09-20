@@ -224,6 +224,7 @@ export async function GET(req: NextRequest) {
     executionRisk,
     validationRisk,
     trajectory,
+    history,
   });
 
   const phase = venture?.stage ? venture.stage : null;
