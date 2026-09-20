@@ -101,12 +101,101 @@ export async function GET(req: NextRequest) {
     ...gates.map((item) => ({ id: `gate-${item.id}`, kind: "capital_evaluated", title: "Capital gate updated", detail: `${item.name} · ${item.status}`, createdAt: item.updatedAt.toISOString() })),
   ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 6);
 
+  const velocityValue = typeof metrics.velocity.value === "number" ? metrics.velocity.value : null;
+  const validationValue = typeof metrics.validation.value === "number" ? metrics.validation.value : null;
+
+  const blockedObjective = objectives.find((item) => item.status === "blocked");
+  const atRiskObjective = objectives.find((item) => item.status === "at_risk");
+
+  const command = blockedObjective
+    ? {
+        status: "ATTENTION",
+        priority: "HIGH",
+        title: "A blocked objective is stopping execution",
+        explanation: `Resolve “${blockedObjective.title}” before increasing execution load. VELA found a persisted objective marked as blocked.`,
+        action: { title: "Resolve objective", href: "/build" },
+        evidence: [`objective:${blockedObjective.id}`, "objective_status:blocked"],
+        affectedMetric: "Operational Health",
+      }
+    : stats.signals.interviews === 0
+      ? {
+          status: "ATTENTION",
+          priority: "HIGH",
+          title: "Customer validation needs attention",
+          explanation: velocityValue !== null && velocityValue >= 60
+            ? `Execution Velocity is ${velocityValue}, but there are no customer interview signals. Validate before accelerating build activity.`
+            : "There are no customer interview signals yet. Capture direct customer evidence before making the next major product decision.",
+          action: { title: "Record customer interview", href: "/validate" },
+          evidence: ["customer_interviews:0", velocityValue !== null ? `execution_velocity:${velocityValue}` : "execution_velocity:insufficient_data"],
+          affectedMetric: "PMF Evidence",
+        }
+      : velocityValue !== null && validationValue !== null && velocityValue - validationValue >= 20
+        ? {
+            status: "ATTENTION",
+            priority: "HIGH",
+            title: "Execution is outpacing validation",
+            explanation: `Execution Velocity is ${velocityValue} while Validation Activity is ${validationValue}. Gather new market evidence before increasing delivery speed.`,
+            action: { title: "Strengthen validation", href: "/validate" },
+            evidence: [`execution_velocity:${velocityValue}`, `validation_activity:${validationValue}`],
+            affectedMetric: "Validation Activity",
+          }
+        : executionRisk.status === "AVAILABLE" && executionRisk.level === "HIGH"
+          ? {
+              status: "ATTENTION",
+              priority: "HIGH",
+              title: "Execution risk requires intervention",
+              explanation: executionRisk.factors[0] ?? "VELA detected elevated execution risk from current operating evidence.",
+              action: { title: "Review execution", href: "/engine" },
+              evidence: executionRisk.factors.length ? executionRisk.factors : ["execution_risk:high"],
+              affectedMetric: "Risk",
+            }
+          : atRiskObjective
+            ? {
+                status: "FOCUS",
+                priority: "MEDIUM",
+                title: "An objective is at risk",
+                explanation: `“${atRiskObjective.title}” is marked at risk. Review its constraints and next commitment before the current cycle advances.`,
+                action: { title: "Review objective", href: "/build" },
+                evidence: [`objective:${atRiskObjective.id}`, "objective_status:at_risk"],
+                affectedMetric: "Operational Health",
+              }
+            : stats.sprints.total === 0
+              ? {
+                  status: "FOCUS",
+                  priority: "MEDIUM",
+                  title: "Establish an execution cadence",
+                  explanation: "No Sprint evidence exists yet. Create the first Sprint so VELA can measure throughput, commitments and execution velocity.",
+                  action: { title: "Create first Sprint", href: "/engine" },
+                  evidence: ["sprints:0"],
+                  affectedMetric: "Execution Velocity",
+                }
+              : stats.gates.total === 0
+                ? {
+                    status: "FOCUS",
+                    priority: "MEDIUM",
+                    title: "Capital readiness lacks decision gates",
+                    explanation: "Execution data exists, but no capital gates are defined. Add gates so readiness can reflect explicit investment criteria.",
+                    action: { title: "Define capital gates", href: "/capital" },
+                    evidence: ["capital_gates:0"],
+                    affectedMetric: "Capital Readiness",
+                  }
+                : {
+                    status: "STABLE",
+                    priority: "LOW",
+                    title: "Operating rhythm is stable",
+                    explanation: "No immediate blocker is dominant in the current evidence. Continue the active Sprint and keep validation signals fresh.",
+                    action: { title: "Review operating plan", href: "/engine" },
+                    evidence: ["objectives", "signals", "sprints", "capital_gates"],
+                    affectedMetric: "Venture Pulse",
+                  };
+
   const phase = venture?.stage ? venture.stage : null;
   return NextResponse.json({
     venture,
     phase,
     stats,
     metrics,
+    command,
     currentSprint,
     trajectory: { assessment: trajectory, executionRisk, validationRisk },
     nextActions,
