@@ -1115,6 +1115,28 @@ model InterventionLearning {
 }
 
 
+model DecisionLearning {
+  id                String   @id @default(cuid())
+  ownerId           String
+  decisionId        String   @unique
+  signature         String
+  decisionTitle     String
+  choice            String
+  expectedOutcome   String?
+  outcome           String
+  outcomeStatus     String
+  effectiveness     Float
+  confidence        String
+  lesson            String
+  evidence          String[]
+  learnedAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([ownerId, signature])
+  @@index([ownerId, outcomeStatus])
+  @@index([ownerId, effectiveness])
+}
+
 model DomainEventRecord {
   id         String   @id @default(cuid())
   ownerId    String
