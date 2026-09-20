@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { dispatchDomainEvent } from "@/lib/domain-events";
 
 export async function GET(req: NextRequest) {
   const auth = await requireRole(req, ["admin", "analista", "operador"]);
@@ -41,6 +42,7 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  await dispatchDomainEvent("relay_thread_created", { threadId: thread.id, ownerId: auth.session.sub, category: thread.category });
   return NextResponse.json(thread, { status: 201 });
 }
 
