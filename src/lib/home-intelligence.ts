@@ -32,6 +32,13 @@ export type HomeIntelligenceInput = {
     status: string;
     factors: string[];
   };
+  rootCause: {
+    status: "AVAILABLE" | "INSUFFICIENT_DATA" | "NO_DOMINANT_CAUSE";
+    primary: { label: string; delta: number; velocityPerDay: number; leadHours: number | null } | null;
+    contributors: { label: string; delta: number; velocityPerDay: number; leadHours: number | null }[];
+    explanation: string;
+    confidence: "LOW" | "MEDIUM" | "HIGH";
+  };
   history: {
     status: "AVAILABLE" | "INSUFFICIENT_DATA";
     direction: "IMPROVING" | "STABLE" | "DECLINING" | null;
@@ -76,6 +83,7 @@ function confidenceFromEvidence(input: HomeIntelligenceInput) {
   if (input.trajectory.status !== "INSUFFICIENT_DATA") sources += 1;
   if (input.history.status === "AVAILABLE") sources += 1;
   if (input.history.dynamics.status === "AVAILABLE") sources += 1;
+  if (input.rootCause.status === "AVAILABLE") sources += 1;
 
   if (sources >= 6) return "HIGH" as const;
   if (sources >= 3) return "MEDIUM" as const;
@@ -129,11 +137,17 @@ export function synthesizeHomeIntelligence(input: HomeIntelligenceInput): HomeIn
 
   if (dynamicState === "TURNING_NEGATIVE") {
     tensions.unshift(input.history.dynamics.explanation);
+    if (input.rootCause.primary) {
+      evidence.push(`root_cause:${input.rootCause.primary.label.toLowerCase().replaceAll(" ", "_")}`);
+      tensions.unshift(input.rootCause.explanation);
+    }
     return {
       type: "STRATEGIC_INTERPRETATION",
       title: "A negative turning point is forming.",
       thesis: "The venture has shifted from positive operating momentum into contraction.",
-      body: `${input.history.dynamics.explanation} Protect validated work, reduce new scope and investigate which operating metric changed first.`,
+      body: input.rootCause.primary
+        ? `${input.history.dynamics.explanation} ${input.rootCause.primary.label} changed first in the observed window. ${input.rootCause.explanation}`
+        : `${input.history.dynamics.explanation} Protect validated work, reduce new scope and investigate which operating metric changed first.`,
       confidence,
       evidence: [...new Set(evidence)],
       tensions,
@@ -143,11 +157,17 @@ export function synthesizeHomeIntelligence(input: HomeIntelligenceInput): HomeIn
 
   if (dynamicState === "DETERIORATING") {
     tensions.unshift(input.history.dynamics.explanation);
+    if (input.rootCause.primary) {
+      evidence.push(`root_cause:${input.rootCause.primary.label.toLowerCase().replaceAll(" ", "_")}`);
+      tensions.unshift(input.rootCause.explanation);
+    }
     return {
       type: "STRATEGIC_INTERPRETATION",
       title: "Operating momentum is deteriorating.",
       thesis: "The current state is weaker than the historical direction, and the recent slope remains negative.",
-      body: `${input.history.dynamics.explanation} Treat this as a trend problem rather than a single weak snapshot.`,
+      body: input.rootCause.primary
+        ? `${input.history.dynamics.explanation} The earliest material deterioration is ${input.rootCause.primary.label}: ${input.rootCause.primary.delta} points at ${input.rootCause.primary.velocityPerDay} pts/day. This is a likely driver to investigate, not proof of causality.`
+        : `${input.history.dynamics.explanation} Treat this as a trend problem rather than a single weak snapshot.`,
       confidence,
       evidence: [...new Set(evidence)],
       tensions,
