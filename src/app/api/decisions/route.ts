@@ -25,13 +25,19 @@ export async function POST(req: NextRequest) {
   const session = auth.session;
 
   const body = await req.json();
-  const { title, context, choice, rationale } = body;
+  const { title, context, choice, rationale, expectedOutcome, evidence, reviewAt } = body;
   if (!title || !context || !choice || !rationale) {
     return NextResponse.json({ error: "title, context, choice, rationale required" }, { status: 400 });
   }
 
   const decision = await prisma.decision.create({
-    data: { title, context, choice, rationale, ownerId: session.sub, ownerName: session.name },
+    data: {
+      title, context, choice, rationale,
+      expectedOutcome: expectedOutcome?.trim() || null,
+      evidence: Array.isArray(evidence) ? evidence.map((item: unknown) => String(item).trim()).filter(Boolean) : [],
+      reviewAt: reviewAt ? new Date(reviewAt) : null,
+      ownerId: session.sub, ownerName: session.name,
+    },
   });
 
   // Award collaboration score
@@ -51,8 +57,11 @@ export async function PATCH(req: NextRequest) {
   const session = auth.session;
 
   const body = await req.json();
-  const { id, outcome } = body;
+  const { id, outcome, outcomeStatus, consolidateLearning } = body;
   if (!id || !outcome) return NextResponse.json({ error: "id and outcome required" }, { status: 400 });
+  if (outcomeStatus && !["SUCCESS", "PARTIAL", "NO_IMPROVEMENT"].includes(outcomeStatus)) {
+    return NextResponse.json({ error: "invalid outcomeStatus" }, { status: 400 });
+  }
 
   const decision = await prisma.decision.findFirst({
     where: { id, ownerId: session.sub },
@@ -68,8 +77,18 @@ export async function PATCH(req: NextRequest) {
     update: { results: { increment: 5 } },
   });
 
-  const updated = await prisma.decision.update({ where: { id: decision.id }, data: { outcome } });
+  const updated = await prisma.decision.update({
+    where: { id: decision.id },
+    data: {
+      outcome,
+      outcomeStatus: outcomeStatus || decision.outcomeStatus,
+      learnedAt: consolidateLearning ? new Date() : decision.learnedAt,
+    },
+  });
   await dispatchDomainEvent("decision_outcome_recorded", { decisionId: updated.id, ownerId: session.sub });
+  if (consolidateLearning && updated.outcomeStatus) {
+    await dispatchDomainEvent("decision_learning_consolidated", { decisionId: updated.id, ownerId: session.sub, outcomeStatus: updated.outcomeStatus });
+  }
   return NextResponse.json(updated);
 }
 
