@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { dispatchDomainEvent } from "@/lib/domain-events";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +63,7 @@ export async function POST(req: NextRequest) {
     update: { type },
   });
 
+  await dispatchDomainEvent("relay_connection_created", { connectionId: connection.id, ownerId: session.sub, toUserId, type });
   return NextResponse.json(connection, { status: 201 });
 }
 
@@ -78,5 +80,6 @@ export async function DELETE(req: NextRequest) {
     where: { fromUserId: session.sub, toUserId },
   });
 
+  await dispatchDomainEvent("relay_connection_removed", { ownerId: session.sub, toUserId });
   return NextResponse.json({ ok: true });
 }
