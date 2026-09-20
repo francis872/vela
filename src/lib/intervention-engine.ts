@@ -35,23 +35,29 @@ export function proposeIntervention(input: {
   command: { title: string; explanation: string; affectedMetric: string; action: { title: string; href: string }; evidence: string[] };
   rootCause: { status: string; primary: { label: string; delta: number } | null };
   metrics: MetricMap;
+  learnedAction?: { actionTitle: string; effectiveness: number; confidence: string } | null;
 }): InterventionProposal {
   const rootMetric = input.rootCause.primary?.label ?? input.command.affectedMetric;
   const baseline = metricValue(rootMetric, input.metrics);
   const targetDelta = rootMetric.toLowerCase().includes("risk") ? -10 : 10;
 
+  const actionTitle = input.learnedAction?.actionTitle ?? input.command.action.title;
+  const learnedContext = input.learnedAction
+    ? ` VELA previously observed effectiveness ${input.learnedAction.effectiveness} with confidence ${input.learnedAction.confidence} for this response.`
+    : "";
+
   return {
     title: input.rootCause.primary ? `Recover ${rootMetric}` : input.command.title,
     hypothesis: input.rootCause.primary
-      ? `If the venture executes “${input.command.action.title}”, the earliest deteriorating signal (${rootMetric}) should improve before downstream metrics recover.`
-      : `If the venture executes “${input.command.action.title}”, ${input.command.affectedMetric} should materially improve in the next operating window.`,
+      ? `If the venture executes “${actionTitle}”, the earliest deteriorating signal (${rootMetric}) should improve before downstream metrics recover.${learnedContext}`
+      : `If the venture executes “${actionTitle}”, ${input.command.affectedMetric} should materially improve in the next operating window.${learnedContext}`,
     source: input.rootCause.primary ? "root_cause_intelligence" : "command_center",
     sourceEvidence: input.command.evidence,
     targetMetric: rootMetric,
     baselineValue: baseline,
     targetDelta,
     deadlineDays: 7,
-    actionTitle: input.command.action.title,
+    actionTitle,
     actionHref: input.command.action.href,
   };
 }
