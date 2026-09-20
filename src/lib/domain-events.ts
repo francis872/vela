@@ -15,6 +15,9 @@ export type DomainEventMap = {
   intervention_started: { interventionId: string; ownerId: string; targetMetric: string };
   intervention_completed: { interventionId: string; ownerId: string; outcomeStatus: string | null };
   learning_created: { learningId: string; interventionId: string; ownerId: string; outcomeStatus: string };
+  relay_thread_created: { threadId: string; ownerId: string; category: string };
+  relay_connection_created: { connectionId: string; ownerId: string; toUserId: string; type: string };
+  relay_connection_removed: { ownerId: string; toUserId: string };
 };
 
 export type DomainEventName = keyof DomainEventMap;
