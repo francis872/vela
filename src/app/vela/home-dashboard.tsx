@@ -55,6 +55,8 @@ type Pulse = {
     };
   };
   nextActions: PulseAction[];
+  interventions: { id: string; title: string; targetMetric: string; status: string; outcomeStatus: string | null; outcomeDelta: number | null; actionHref: string; deadline: string | null }[];
+  interventionProposal: { title: string; hypothesis: string; source: string; sourceEvidence: string[]; targetMetric: string; baselineValue: number | null; targetDelta: number; deadlineDays: number; actionTitle: string; actionHref: string };
   activity: Activity[];
   ai: {
     type: "STRATEGIC_INTERPRETATION" | "OBSERVATION";
@@ -92,6 +94,7 @@ function phaseIndex(phase: string | null) {
 export default function HomeDashboard({ session }: { session: Session }) {
   const [pulse, setPulse] = useState<Pulse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [creatingIntervention, setCreatingIntervention] = useState(false);
   const [now] = useState(() => Date.now());
 
   useEffect(() => {
@@ -100,6 +103,23 @@ export default function HomeDashboard({ session }: { session: Session }) {
       .then((data) => { setPulse(data); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
+
+  async function acceptIntervention() {
+    if (!pulse?.interventionProposal || creatingIntervention) return;
+    setCreatingIntervention(true);
+    try {
+      const response = await fetch("/api/home/interventions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(pulse.interventionProposal),
+      });
+      if (!response.ok) return;
+      const refresh = await fetch("/api/home/pulse", { cache: "no-store" });
+      if (refresh.ok) setPulse(await refresh.json());
+    } finally {
+      setCreatingIntervention(false);
+    }
+  }
 
   const sprint = pulse?.currentSprint;
   const doneItems = sprint?.items.filter((item) => item.done).length ?? 0;
@@ -147,6 +167,31 @@ export default function HomeDashboard({ session }: { session: Session }) {
             </Link>
             <small>Recommended from current venture evidence</small>
           </div>
+        </section>
+      )}
+
+      {!loading && pulse?.interventionProposal && (
+        <section className="home-intervention" aria-labelledby="intervention-title">
+          <div>
+            <span className="home-eyebrow">Intervention Engine</span>
+            <h2 id="intervention-title">{pulse.interventionProposal.title}</h2>
+            <p>{pulse.interventionProposal.hypothesis}</p>
+          </div>
+          <div className="home-intervention-target">
+            <span>Target</span>
+            <strong>{pulse.interventionProposal.targetMetric}</strong>
+            <small>{pulse.interventionProposal.targetDelta >= 0 ? "+" : ""}{pulse.interventionProposal.targetDelta} pts · {pulse.interventionProposal.deadlineDays} days</small>
+          </div>
+          <button type="button" className="btn-secondary" onClick={acceptIntervention} disabled={creatingIntervention}>
+            {creatingIntervention ? "Creating…" : "Start intervention"}
+          </button>
+          {pulse.interventions?.[0] && (
+            <div className="home-intervention-active">
+              <span>Latest · {pulse.interventions[0].status}</span>
+              <strong>{pulse.interventions[0].title}</strong>
+              <small>{pulse.interventions[0].outcomeStatus ?? "Awaiting outcome"}{pulse.interventions[0].outcomeDelta !== null ? ` · ${pulse.interventions[0].outcomeDelta >= 0 ? "+" : ""}${pulse.interventions[0].outcomeDelta} pts` : ""}</small>
+            </div>
+          )}
         </section>
       )}
 
