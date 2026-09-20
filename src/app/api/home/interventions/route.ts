@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import { createIntervention, listInterventions } from "@/lib/intervention-engine";
+import { dispatchDomainEvent } from "@/lib/domain-events";
 
 export const dynamic = "force-dynamic";
 
@@ -33,5 +34,6 @@ export async function POST(req: NextRequest) {
     actionHref: body.actionHref,
   });
 
+  await dispatchDomainEvent("intervention_started", { interventionId: intervention.id, ownerId: auth.session.sub, targetMetric: intervention.targetMetric });
   return NextResponse.json({ intervention }, { status: 201 });
 }
