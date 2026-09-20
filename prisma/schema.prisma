@@ -620,19 +620,26 @@ model FounderScore {
 }
 
 model Decision {
-  id         String   @id @default(cuid())
-  title      String
-  context    String
-  choice     String
-  rationale  String
-  outcome    String?
-  ownerId    String
-  ownerName  String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id              String   @id @default(cuid())
+  title           String
+  context         String
+  choice          String
+  rationale       String
+  expectedOutcome String?
+  evidence        String[] @default([])
+  reviewAt        DateTime?
+  outcome         String?
+  outcomeStatus   String?
+  learnedAt       DateTime?
+  ownerId         String
+  ownerName       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([ownerId])
   @@index([createdAt])
+  @@index([reviewAt])
+  @@index([outcomeStatus])
 }
 
 enum SprintStatus {
