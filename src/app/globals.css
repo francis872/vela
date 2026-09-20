@@ -732,3 +732,13 @@ h1, h2, h3, h4 { letter-spacing: -0.025em; font-weight: 700; }
   .build-create-grid { grid-template-columns: 1fr; }
   .build-create-actions { align-items: flex-start; flex-direction: column; }
 }
+
+
+.build-intelligence-detail { display: grid; grid-template-columns: repeat(4, 1fr); max-width: 1440px; margin: 0.65rem auto 0; border: 1px solid #d9d5cc; border-top: 0; background: #ece9e1; }
+.build-intelligence-stat { display: grid; gap: 0.22rem; min-height: 78px; padding: 0.65rem 0.8rem; border-right: 1px solid #d9d5cc; }
+.build-intelligence-stat:last-child { border-right: 0; }
+.build-intelligence-stat > span { color: #818682; font-size: 0.5rem; font-weight: 800; letter-spacing: 0.075em; text-transform: uppercase; }
+.build-intelligence-stat strong { font-family: var(--font-geist-mono), Georgia, serif; font-size: 1.15rem; font-weight: 500; }
+.build-intelligence-stat small { overflow: hidden; color: #858a86; font-size: 0.53rem; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 900px) { .build-intelligence-detail { grid-template-columns: 1fr 1fr; } .build-intelligence-stat:nth-child(2) { border-right: 0; } }
+@media (max-width: 560px) { .build-intelligence-detail { grid-template-columns: 1fr; } .build-intelligence-stat { border-right: 0; border-bottom: 1px solid #d9d5cc; } .build-intelligence-stat:last-child { border-bottom: 0; } }
