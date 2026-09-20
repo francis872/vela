@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { dispatchDomainEvent } from "@/lib/domain-events";
 
 function signature(targetMetric: string, source: string, evidence: string[]) {
   const normalizedEvidence = evidence
@@ -37,7 +38,8 @@ export async function consolidateLearningMemory(ownerId: string) {
         ? `“${item.actionTitle}” produced partial movement in ${item.targetMetric} (${item.outcomeDelta ?? 0} points) but did not fully reach the target.`
         : `“${item.actionTitle}” did not materially improve ${item.targetMetric} within the intervention window.`;
 
-    await prisma.interventionLearning.upsert({
+    const existingLearning = await prisma.interventionLearning.findUnique({ where: { interventionId: item.id }, select: { id: true } });
+    const learning = await prisma.interventionLearning.upsert({
       where: { interventionId: item.id },
       create: {
         ownerId,
@@ -62,6 +64,14 @@ export async function consolidateLearningMemory(ownerId: string) {
         evidence: item.sourceEvidence,
       },
     });
+    if (!existingLearning) {
+      await dispatchDomainEvent("learning_created", {
+        learningId: learning.id,
+        interventionId: item.id,
+        ownerId,
+        outcomeStatus: learning.outcomeStatus,
+      });
+    }
   }
 }
 
