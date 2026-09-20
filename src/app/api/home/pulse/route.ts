@@ -221,11 +221,21 @@ export async function GET(req: NextRequest) {
   await updateInterventionOutcomes(ownerId, interventionMetrics);
   await consolidateLearningMemory(ownerId);
   const interventions = await listInterventions(ownerId);
-  const interventionProposal = proposeIntervention({ command, rootCause, metrics: interventionMetrics });
+  const baseInterventionProposal = proposeIntervention({ command, rootCause, metrics: interventionMetrics });
   const learningMemory = await recallLearning(ownerId, {
-    targetMetric: interventionProposal.targetMetric,
-    source: interventionProposal.source,
-    evidence: interventionProposal.sourceEvidence,
+    targetMetric: baseInterventionProposal.targetMetric,
+    source: baseInterventionProposal.source,
+    evidence: baseInterventionProposal.sourceEvidence,
+  });
+  const interventionProposal = proposeIntervention({
+    command,
+    rootCause,
+    metrics: interventionMetrics,
+    learnedAction: learningMemory.recommendation ? {
+      actionTitle: learningMemory.recommendation.actionTitle,
+      effectiveness: learningMemory.recommendation.effectiveness,
+      confidence: learningMemory.recommendation.confidence,
+    } : null,
   });
 
   const ai = synthesizeHomeIntelligence({
