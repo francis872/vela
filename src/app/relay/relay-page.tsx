@@ -40,7 +40,12 @@ type Decision = {
   context: string;
   choice: string;
   rationale: string;
+  expectedOutcome?: string;
+  evidence: string[];
+  reviewAt?: string;
   outcome?: string;
+  outcomeStatus?: string;
+  learnedAt?: string;
   ownerName: string;
   createdAt: string;
 };
@@ -68,22 +73,29 @@ export default function RelayPage({ session }: { session: Session }) {
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [showDecForm, setShowDecForm] = useState(false);
   const [savingDec, setSavingDec] = useState(false);
-  const [decForm, setDecForm] = useState({ title: "", context: "", choice: "", rationale: "" });
+  const [decForm, setDecForm] = useState({ title: "", context: "", choice: "", rationale: "", expectedOutcome: "", evidence: "", reviewAt: "" });
   const [outcomeInputs, setOutcomeInputs] = useState<Record<string, string>>({});
+  const [outcomeStatuses, setOutcomeStatuses] = useState<Record<string, string>>({});
+  const [decisionIntelligence, setDecisionIntelligence] = useState<any>(null);
 
   async function load() {
     setLoading(true);
     try {
-      const [tRes, dRes, iRes] = await Promise.all([
+      const [tRes, dRes, iRes, diRes] = await Promise.all([
         fetch("/api/threads?limit=50", { cache: "no-store" }),
         fetch("/api/decisions", { cache: "no-store" }),
         fetch("/api/relay/intelligence", { cache: "no-store" }),
+        fetch("/api/decisions/intelligence", { cache: "no-store" }),
       ]);
       if (tRes.ok) setThreads(await tRes.json());
       if (dRes.ok) setDecisions(await dRes.json());
       if (iRes.ok) {
         const payload = await iRes.json();
         setIntelligence(payload.intelligence ?? null);
+      }
+      if (diRes.ok) {
+        const payload = await diRes.json();
+        setDecisionIntelligence(payload.intelligence ?? null);
       }
     } finally { setLoading(false); }
   }
@@ -126,13 +138,17 @@ export default function RelayPage({ session }: { session: Session }) {
     const res = await fetch("/api/decisions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(decForm),
+      body: JSON.stringify({
+        ...decForm,
+        evidence: decForm.evidence.split("\n").map((item) => item.trim()).filter(Boolean),
+        reviewAt: decForm.reviewAt || null,
+      }),
     });
     if (res.ok) {
       const created = await res.json();
       setDecisions((prev) => [created, ...prev]);
     }
-    setDecForm({ title: "", context: "", choice: "", rationale: "" });
+    setDecForm({ title: "", context: "", choice: "", rationale: "", expectedOutcome: "", evidence: "", reviewAt: "" });
     setShowDecForm(false);
     setSavingDec(false);
   }
@@ -143,12 +159,13 @@ export default function RelayPage({ session }: { session: Session }) {
     const res = await fetch("/api/decisions", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, outcome }),
+      body: JSON.stringify({ id, outcome, outcomeStatus: outcomeStatuses[id] || null, consolidateLearning: Boolean(outcomeStatuses[id]) }),
     });
     if (res.ok) {
       const updated = await res.json();
       setDecisions((prev) => prev.map((d) => d.id === id ? updated : d));
       setOutcomeInputs((p) => ({ ...p, [id]: "" }));
+      setOutcomeStatuses((p) => ({ ...p, [id]: "" }));
     }
   }
 
@@ -343,13 +360,27 @@ export default function RelayPage({ session }: { session: Session }) {
               <strong style={{ color: "var(--ink)" }}>¿Qué es el Decision Log?</strong><br/>
               Registra las decisiones importantes de tu startup: qué decidiste, por qué, y qué resultó. Con el tiempo, este historial se convierte en tu diario estratégico y te ayuda a aprender de cada pivote.
             </div>
-            {showDecForm && (
+            {decisionIntelligence && (
+              <section className={`decision-intelligence decision-intelligence-${decisionIntelligence.status.toLowerCase()}`}>
+                <div><span className="home-eyebrow">Decision Intelligence</span><strong>{decisionIntelligence.title}</strong><p>{decisionIntelligence.explanation}</p></div>
+                <div className="decision-health">
+                  <span>Pending <b>{decisionIntelligence.health.pending}</b></span>
+                  <span>Overdue <b>{decisionIntelligence.health.overdue}</b></span>
+                  <span>No evidence <b>{decisionIntelligence.health.withoutEvidence}</b></span>
+                  <span>Learning <b>{decisionIntelligence.health.awaitingLearning}</b></span>
+                </div>
+              </section>
+            )}
+                        {showDecForm && (
               <form onSubmit={handleDecSubmit} className="os-card" style={{ display: "flex", flexDirection: "column", gap: "0.75rem", border: "1px solid var(--accent)" }}>
                 <div style={{ fontWeight: 700, color: "var(--ink)" }}>Nueva decisión</div>
                 <input className="os-input" placeholder="Título de la decisión (ej: Pivotar a B2B)" value={decForm.title} onChange={(e) => setDecForm({ ...decForm, title: e.target.value })} required />
                 <textarea className="os-input os-textarea" placeholder="Contexto: ¿qué situación te llevó a esto?" value={decForm.context} onChange={(e) => setDecForm({ ...decForm, context: e.target.value })} rows={2} />
                 <input className="os-input" placeholder="Decisión tomada" value={decForm.choice} onChange={(e) => setDecForm({ ...decForm, choice: e.target.value })} />
                 <textarea className="os-input os-textarea" placeholder="Razonamiento: ¿por qué esta opción?" value={decForm.rationale} onChange={(e) => setDecForm({ ...decForm, rationale: e.target.value })} rows={2} />
+                <input className="os-input" placeholder="Resultado esperado" value={decForm.expectedOutcome} onChange={(e) => setDecForm({ ...decForm, expectedOutcome: e.target.value })} />
+                <textarea className="os-input os-textarea" placeholder={"Evidencia que soporta la decisión · una referencia por línea"} value={decForm.evidence} onChange={(e) => setDecForm({ ...decForm, evidence: e.target.value })} rows={2} />
+                <label className="decision-review-field"><span>Review date</span><input className="os-input" type="date" value={decForm.reviewAt} onChange={(e) => setDecForm({ ...decForm, reviewAt: e.target.value })} /></label>
                 <div style={{ display: "flex", gap: "0.75rem" }}>
                   <button type="submit" className="btn-primary" disabled={savingDec}>{savingDec ? "Guardando…" : "Guardar"}</button>
                   <button type="button" className="btn-ghost" onClick={() => setShowDecForm(false)}>Cancelar</button>
@@ -374,10 +405,15 @@ export default function RelayPage({ session }: { session: Session }) {
                       {d.context && <div style={{ fontSize: "0.82rem", color: "var(--ink-3)", marginBottom: "0.25rem" }}>Contexto: {d.context}</div>}
                       {d.choice && <div style={{ fontSize: "0.82rem", color: "var(--ink-2)", marginBottom: "0.25rem" }}>◆ {d.choice}</div>}
                       {d.rationale && <div style={{ fontSize: "0.8rem", color: "var(--ink-3)", fontStyle: "italic", marginBottom: "0.25rem" }}>{d.rationale}</div>}
-                      {d.outcome && <div style={{ fontSize: "0.82rem", color: "var(--green)", marginTop: "0.4rem" }}>Resultado: {d.outcome}</div>}
+                      {d.expectedOutcome && <div className="decision-contract"><span>Expected outcome</span><strong>{d.expectedOutcome}</strong>{d.reviewAt && <small>Review {new Date(d.reviewAt).toLocaleDateString("es-CO")}</small>}</div>}
+                      {d.evidence?.length > 0 && <div className="decision-evidence">{d.evidence.map((item) => <span key={item}>{item}</span>)}</div>}
+                      {d.outcome && <div style={{ fontSize: "0.82rem", color: "var(--green)", marginTop: "0.4rem" }}>Resultado: {d.outcome} {d.outcomeStatus ? `· ${d.outcomeStatus}` : ""}{d.learnedAt ? " · Learning consolidated" : ""}</div>}
                       {!d.outcome && (
                         <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
                           <input className="os-input" placeholder="Registrar resultado…" value={outcomeInputs[d.id] ?? ""} onChange={(e) => setOutcomeInputs((p) => ({ ...p, [d.id]: e.target.value }))} style={{ flex: 1, fontSize: "0.8rem" }} />
+                          <select className="os-input" value={outcomeStatuses[d.id] ?? ""} onChange={(e) => setOutcomeStatuses((p) => ({ ...p, [d.id]: e.target.value }))} style={{ maxWidth: 170, fontSize: "0.72rem" }}>
+                            <option value="">Outcome status</option><option value="SUCCESS">Success</option><option value="PARTIAL">Partial</option><option value="NO_IMPROVEMENT">No improvement</option>
+                          </select>
                           <button className="btn-ghost" onClick={() => recordOutcome(d.id)} style={{ fontSize: "0.78rem" }}>Guardar</button>
                         </div>
                       )}
