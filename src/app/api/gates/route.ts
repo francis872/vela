@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { dispatchDomainEvent } from "@/lib/domain-events";
 
 const GATE_STATUSES = ["pending", "passed", "failed"] as const;
 type GateStatusValue = (typeof GATE_STATUSES)[number];
@@ -48,6 +49,7 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  await dispatchDomainEvent("gate_created", { gateId: gate.id, ownerId: auth.session.sub });
   return NextResponse.json(gate, { status: 201 });
 }
 
@@ -75,6 +77,7 @@ export async function PATCH(req: NextRequest) {
     },
   });
 
+  await dispatchDomainEvent("gate_updated", { gateId: gate.id, ownerId: auth.session.sub, status: gate.status });
   return NextResponse.json(gate);
 }
 
