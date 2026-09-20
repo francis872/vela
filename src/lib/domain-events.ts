@@ -14,6 +14,8 @@ export type DomainEventMap = {
   decision_memory_created: { learningId: string; decisionId: string; ownerId: string; outcomeStatus: string };
   team_member_added: { memberId: string; ventureId: string; ownerId: string; userId: string };
   team_member_updated: { memberId: string; ventureId: string; ownerId: string; status: string };
+  team_work_assigned: { assignmentId: string; memberId: string; ventureId: string; ownerId: string; workType: string; workId: string };
+  team_work_updated: { assignmentId: string; memberId: string; ventureId: string; ownerId: string; status: string };
   gate_created: { gateId: string; ownerId: string };
   gate_updated: { gateId: string; ownerId: string; status: string };
   intervention_started: { interventionId: string; ownerId: string; targetMetric: string };
