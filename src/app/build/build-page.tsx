@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState, FormEvent } from "react";
-import Link from "next/link";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import GraphView from "./graph-view";
 
 type Session = { name: string; email: string; role: string };
@@ -19,24 +18,17 @@ type Objective = {
 };
 
 const STATUS_OPTIONS = [
-  { value: "on_track",  label: "En Curso",   color: "var(--green)" },
-  { value: "at_risk",   label: "En Riesgo",  color: "var(--amber)" },
-  { value: "blocked",   label: "Bloqueado",  color: "var(--red)" },
-  { value: "completed", label: "Completado", color: "var(--ink-3)" },
-];
+  { value: "on_track", label: "On track" },
+  { value: "at_risk", label: "At risk" },
+  { value: "blocked", label: "Blocked" },
+  { value: "completed", label: "Completed" },
+] as const;
 
-const STATUS_BADGE: Record<string, string> = {
-  on_track:  "badge-green",
-  at_risk:   "badge-amber",
-  blocked:   "badge-red",
-  completed: "badge-ghost",
-};
-
-const STATUS_LABEL: Record<string, string> = {
-  on_track:  "En Curso",
-  at_risk:   "En Riesgo",
-  blocked:   "Bloqueado",
-  completed: "Completado",
+const STATUS_LABEL: Record<Objective["status"], string> = {
+  on_track: "On track",
+  at_risk: "At risk",
+  blocked: "Blocked",
+  completed: "Completed",
 };
 
 const COLUMNS = ["on_track", "at_risk", "blocked", "completed"] as const;
@@ -48,194 +40,252 @@ export default function BuildPage({ session }: { session: Session }) {
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<"board" | "graph">("board");
-
   const [form, setForm] = useState({
-    title: "", description: "", status: "on_track", priority: "1", dueDate: ""
+    title: "",
+    description: "",
+    status: "on_track",
+    priority: "1",
+    dueDate: "",
   });
 
-  async function load() {
-    setLoading(true);
-    const res = await fetch("/api/objectives?limit=50");
-    if (res.ok) setObjectives(await res.json());
-    setLoading(false);
+  async function load(silent = false) {
+    if (!silent) setLoading(true);
+    try {
+      const res = await fetch("/api/objectives?limit=50", { cache: "no-store" });
+      if (res.ok) setObjectives(await res.json());
+    } finally {
+      if (!silent) setLoading(false);
+    }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    void load();
+  }, []);
+
+  useEffect(() => {
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    const stream = new EventSource("/api/home/events");
+    const refresh = () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => void load(true), 250);
+    };
+    stream.addEventListener("domain-event", refresh);
+    return () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      stream.close();
+    };
+  }, []);
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
     if (!form.title.trim()) return;
     setSaving(true);
-    await fetch("/api/objectives", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: form.title,
-        description: form.description || null,
-        status: form.status,
-        priority: Number(form.priority),
-        dueDate: form.dueDate || null,
-      }),
-    });
-    setForm({ title: "", description: "", status: "on_track", priority: "1", dueDate: "" });
-    setShowForm(false);
-    setSaving(false);
-    await load();
+    try {
+      const response = await fetch("/api/objectives", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: form.title,
+          description: form.description || null,
+          status: form.status,
+          priority: Number(form.priority),
+          dueDate: form.dueDate || null,
+        }),
+      });
+      if (!response.ok) return;
+      setForm({ title: "", description: "", status: "on_track", priority: "1", dueDate: "" });
+      setShowForm(false);
+      await load(true);
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function updateStatus(id: string, status: string) {
-    await fetch("/api/objectives", {
+    const response = await fetch("/api/objectives", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, status }),
     });
-    await load();
+    if (response.ok) await load(true);
   }
 
   async function deleteObj(id: string) {
-    if (!confirm("¿Eliminar este objetivo?")) return;
-    await fetch("/api/objectives", {
+    if (!confirm("Delete this objective?")) return;
+    const response = await fetch("/api/objectives", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id }),
     });
-    await load();
+    if (response.ok) await load(true);
   }
+
+  const stats = useMemo(() => ({
+    total: objectives.length,
+    active: objectives.filter((o) => o.status !== "completed").length,
+    blocked: objectives.filter((o) => o.status === "blocked").length,
+    atRisk: objectives.filter((o) => o.status === "at_risk").length,
+    completed: objectives.filter((o) => o.status === "completed").length,
+    evidence: objectives.reduce((sum, o) => sum + (o._count?.signals ?? 0), 0),
+  }), [objectives]);
+
+  const buildFocus = useMemo(() => {
+    const blocked = objectives.find((o) => o.status === "blocked");
+    if (blocked) return {
+      status: "ATTENTION",
+      title: "A blocked objective is stopping execution.",
+      body: `Resolve “${blocked.title}” before adding more work. Build should reduce constraints before increasing scope.`,
+      objective: blocked,
+    };
+    const atRisk = objectives.find((o) => o.status === "at_risk");
+    if (atRisk) return {
+      status: "FOCUS",
+      title: "Execution risk is forming.",
+      body: `“${atRisk.title}” is at risk. Review its dependency, evidence and next commitment before the cycle advances.`,
+      objective: atRisk,
+    };
+    if (!objectives.length) return {
+      status: "SETUP",
+      title: "Define the first execution objective.",
+      body: "Build becomes useful when the venture has a concrete outcome to move, evidence to attach and dependencies to manage.",
+      objective: null,
+    };
+    return {
+      status: "STABLE",
+      title: "Execution is structurally clear.",
+      body: "No blocked or at-risk objective is dominant. Protect focus and complete active work before broadening scope.",
+      objective: null,
+    };
+  }, [objectives]);
 
   const displayed = filter === "all" ? objectives : objectives.filter((o) => o.status === filter);
 
   return (
-    <div className="os-reveal" style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
-      {/* Header */}
-      <div className="os-page-header">
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div className="os-page-title">Build</div>
-          <div className="os-page-sub">Objetivos de ejecución de tu startup</div>
+    <div className="build-shell">
+      <header className="build-context">
+        <div>
+          <span className="home-eyebrow">Execution system</span>
+          <h1>Build</h1>
+          <p>Turn venture priorities into explicit objectives, dependencies and measurable execution.</p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          {/* Tab toggle */}
-          <div style={{ display: "flex", gap: "0.25rem", background: "var(--surface)", borderRadius: "0.6rem", padding: "0.2rem" }}>
-            {(["board", "graph"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setActiveTab(t)}
-                className={activeTab === t ? "btn-primary" : "btn-ghost"}
-                style={{ padding: "0.3rem 0.75rem", fontSize: "0.8rem", borderRadius: "0.45rem" }}
-              >
-                {t === "board" ? "Tablero" : "Grafo"}
-              </button>
-            ))}
-          </div>
-          {activeTab === "board" && (
-            <button onClick={() => setShowForm(true)} className="btn-primary">
-              + Nuevo objetivo
+        <div className="build-context-meta">
+          <span className="home-eyebrow">Operator</span>
+          <strong>{session.name}</strong>
+          <small>{stats.active} active objectives · {stats.evidence} evidence signals</small>
+        </div>
+      </header>
+
+      <section className={`build-command build-command-${buildFocus.status.toLowerCase()}`}>
+        <div className="build-command-rail">
+          <span className="home-eyebrow">Build Today</span>
+          <span className="build-command-status">{buildFocus.status}</span>
+        </div>
+        <div>
+          <span className="build-command-kicker">Execution focus</span>
+          <h2>{buildFocus.title}</h2>
+          <p>{buildFocus.body}</p>
+        </div>
+        <div className="build-command-action">
+          {buildFocus.objective ? (
+            <button className="btn-primary" onClick={() => setFilter(buildFocus.objective!.status)}>
+              Review objective <span aria-hidden="true">→</span>
+            </button>
+          ) : (
+            <button className="btn-primary" onClick={() => setShowForm(true)}>
+              New objective <span aria-hidden="true">→</span>
             </button>
           )}
+          <small>Derived from persisted objective state</small>
         </div>
-      </div>
+      </section>
 
-      <div style={{ padding: "1.5rem 2.5rem", flex: 1 }}>
+      <section className="build-pulse" aria-labelledby="build-pulse-title">
+        <div className="home-section-heading">
+          <div>
+            <span className="home-eyebrow">Live execution picture</span>
+            <h2 id="build-pulse-title">Execution Pulse</h2>
+          </div>
+          <span className="home-section-note">Real objectives. Real evidence.</span>
+        </div>
+        <div className="build-metric-grid">
+          <BuildMetric label="Active" value={stats.active} note="Open objectives" />
+          <BuildMetric label="Blocked" value={stats.blocked} note="Immediate constraints" tone={stats.blocked ? "danger" : undefined} />
+          <BuildMetric label="At risk" value={stats.atRisk} note="Needs intervention" tone={stats.atRisk ? "warning" : undefined} />
+          <BuildMetric label="Evidence" value={stats.evidence} note="Linked signals" />
+          <BuildMetric label="Completed" value={stats.completed} note="Execution outcomes" />
+        </div>
+      </section>
 
-        {/* Graph tab */}
-        {activeTab === "graph" && <GraphView />}
-
-        {/* Board tab */}
-        {activeTab === "board" && (<>
-
-        {/* Filter bar */}
-        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
-          {[{ value: "all", label: "Todos" }, ...STATUS_OPTIONS].map((s) => (
-            <button
-              key={s.value}
-              onClick={() => setFilter(s.value)}
-              className={filter === s.value ? "btn-primary" : "btn-ghost"}
-              style={{ padding: "0.35rem 0.9rem", fontSize: "0.8rem" }}
-            >
-              {s.label}
-            </button>
-          ))}
+      <section className="build-workspace">
+        <div className="build-toolbar">
+          <div className="build-tabs" role="tablist" aria-label="Build views">
+            <button className={activeTab === "board" ? "is-active" : ""} onClick={() => setActiveTab("board")}>Board</button>
+            <button className={activeTab === "graph" ? "is-active" : ""} onClick={() => setActiveTab("graph")}>Dependency Graph</button>
+          </div>
+          {activeTab === "board" && <button className="btn-primary" onClick={() => setShowForm((value) => !value)}>+ New objective</button>}
         </div>
 
-        {/* Create form */}
-        {showForm && (
-          <form onSubmit={handleCreate} className="os-card" style={{ marginBottom: "1.5rem", display: "flex", flexDirection: "column", gap: "0.875rem" }}>
-            <h3 style={{ fontWeight: 700, fontSize: "1rem", color: "var(--ink)", marginBottom: "0.25rem" }}>Nuevo objetivo</h3>
-            <input
-              className="os-input"
-              placeholder="¿Qué quieres lograr?"
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
-              required
-            />
-            <textarea
-              className="os-input os-textarea"
-              placeholder="Descripción (opcional)"
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              rows={2}
-            />
-            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-              <select className="os-input" style={{ flex: 1 }} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-                {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-              </select>
-              <select className="os-input" style={{ flex: 1 }} value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
-                <option value="1">Prioridad 1</option>
-                <option value="2">Prioridad 2</option>
-                <option value="3">Prioridad 3</option>
-              </select>
-              <input type="date" className="os-input" style={{ flex: 1 }} value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
+        {showForm && activeTab === "board" && (
+          <form onSubmit={handleCreate} className="build-create-panel">
+            <div className="build-create-heading">
+              <div><span className="home-eyebrow">Execution contract</span><h2>New objective</h2></div>
+              <button type="button" className="btn-ghost" onClick={() => setShowForm(false)}>Close</button>
             </div>
-            <div style={{ display: "flex", gap: "0.75rem" }}>
-              <button type="submit" className="btn-primary" disabled={saving}>{saving ? "Guardando…" : "Crear objetivo"}</button>
-              <button type="button" className="btn-ghost" onClick={() => setShowForm(false)}>Cancelar</button>
+            <label>Outcome<input className="os-input" placeholder="What must change?" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></label>
+            <label>Context<textarea className="os-input os-textarea" placeholder="Why does this matter?" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} /></label>
+            <div className="build-create-grid">
+              <label>Status<select className="os-input" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>{STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}</select></label>
+              <label>Priority<select className="os-input" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}><option value="1">Priority 1</option><option value="2">Priority 2</option><option value="3">Priority 3</option></select></label>
+              <label>Due date<input type="date" className="os-input" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} /></label>
             </div>
+            <div className="build-create-actions"><button type="submit" className="btn-primary" disabled={saving}>{saving ? "Creating…" : "Create objective"}</button><span>Every objective becomes part of Home, Trajectory and Event Store.</span></div>
           </form>
         )}
 
-        {/* Board */}
-        {loading ? (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem" }}>
-            {COLUMNS.map((c) => <div key={c} style={{ height: 200, borderRadius: "0.875rem", background: "var(--surface)" }} />)}
-          </div>
-        ) : filter === "all" ? (
-          /* Kanban view when showing all */
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem", overflowX: "auto" }}>
-            {COLUMNS.map((col) => {
-              const colObj = objectives.filter((o) => o.status === col);
-              return (
-                <div key={col} style={{ background: "var(--surface)", borderRadius: "0.875rem", border: "1px solid var(--border)", padding: "1rem", minHeight: 200 }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.875rem" }}>
-                    <span className={`badge ${STATUS_BADGE[col]}`}>{STATUS_LABEL[col]}</span>
-                    <span style={{ fontSize: "0.75rem", color: "var(--ink-3)" }}>{colObj.length}</span>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-                    {colObj.map((o) => (
-                      <ObjectiveCard key={o.id} obj={o} onStatus={updateStatus} onDelete={deleteObj} canDelete={session.role !== "operador"} />
-                    ))}
-                    {colObj.length === 0 && <p style={{ fontSize: "0.78rem", color: "var(--ink-3)", textAlign: "center", paddingTop: "0.5rem" }}>Vacío</p>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          /* List view for filtered */
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-            {displayed.length === 0 && <p style={{ color: "var(--ink-3)" }}>Sin objetivos en esta categoría.</p>}
-            {displayed.map((o) => (
-              <ObjectiveCard key={o.id} obj={o} onStatus={updateStatus} onDelete={deleteObj} canDelete={session.role !== "operador"} compact />
-            ))}
-          </div>
+        {activeTab === "graph" ? <div className="build-graph-shell"><GraphView /></div> : (
+          <>
+            <div className="build-filter-bar">
+              {[{ value: "all", label: "All" }, ...STATUS_OPTIONS].map((s) => (
+                <button key={s.value} className={filter === s.value ? "is-active" : ""} onClick={() => setFilter(s.value)}>
+                  {s.label}
+                  <span>{s.value === "all" ? stats.total : objectives.filter((o) => o.status === s.value).length}</span>
+                </button>
+              ))}
+            </div>
+
+            {loading ? <div className="build-loading-grid">{COLUMNS.map((column) => <div key={column} />)}</div> : filter === "all" ? (
+              <div className="build-board">
+                {COLUMNS.map((column) => {
+                  const items = objectives.filter((o) => o.status === column);
+                  return (
+                    <section key={column} className={`build-column build-column-${column}`}>
+                      <header><div><span className="build-column-dot" /><h3>{STATUS_LABEL[column]}</h3></div><span>{items.length}</span></header>
+                      <div className="build-column-body">
+                        {items.map((objective) => <ObjectiveCard key={objective.id} obj={objective} onStatus={updateStatus} onDelete={deleteObj} canDelete={session.role !== "operador"} />)}
+                        {!items.length && <div className="build-empty">No objectives</div>}
+                      </div>
+                    </section>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="build-list">
+                {!displayed.length && <div className="build-empty">No objectives in this state.</div>}
+                {displayed.map((objective) => <ObjectiveCard key={objective.id} obj={objective} onStatus={updateStatus} onDelete={deleteObj} canDelete={session.role !== "operador"} compact />)}
+              </div>
+            )}
+          </>
         )}
-        </>)}
-      </div>
+      </section>
     </div>
   );
 }
 
-function ObjectiveCard({
-  obj, onStatus, onDelete, canDelete, compact
-}: {
+function BuildMetric({ label, value, note, tone }: { label: string; value: number; note: string; tone?: "danger" | "warning" }) {
+  return <div className={`build-metric ${tone ? `build-metric-${tone}` : ""}`}><span>{label}</span><strong>{value}</strong><small>{note}</small></div>;
+}
+
+function ObjectiveCard({ obj, onStatus, onDelete, canDelete, compact }: {
   obj: Objective;
   onStatus: (id: string, status: string) => void;
   onDelete: (id: string) => void;
@@ -243,34 +293,26 @@ function ObjectiveCard({
   compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const overdue = obj.dueDate && new Date(obj.dueDate).getTime() < Date.now() && obj.status !== "completed";
 
   return (
-    <div className="os-card-sm os-hover-lift" style={{ cursor: "pointer" }} onClick={() => setOpen(!open)}>
-      <p style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--ink)", marginBottom: "0.3rem", letterSpacing: "-0.01em" }}>{obj.title}</p>
-      {obj.description && <p style={{ fontSize: "0.75rem", color: "var(--ink-3)", marginBottom: "0.3rem" }}>{obj.description}</p>}
-      <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
-        <span style={{ fontSize: "0.72rem", color: "var(--ink-3)" }}>{obj.ownerName}</span>
-        {obj.dueDate && <span style={{ fontSize: "0.72rem", color: "var(--ink-3)" }}>· {new Date(obj.dueDate).toLocaleDateString("es-MX", { month: "short", day: "numeric" })}</span>}
-        {obj._count && <span style={{ fontSize: "0.72rem", color: "var(--ink-3)" }}>· {obj._count.signals} señales</span>}
+    <article className={`build-objective ${compact ? "is-compact" : ""}`} onClick={() => setOpen((value) => !value)}>
+      <div className="build-objective-top">
+        <span className={`build-priority p${obj.priority}`}>P{obj.priority}</span>
+        <span className={`build-state build-state-${obj.status}`}>{STATUS_LABEL[obj.status]}</span>
       </div>
-
-      {open && !compact && (
-        <div style={{ marginTop: "0.75rem", display: "flex", gap: "0.4rem", flexWrap: "wrap" }} onClick={(e) => e.stopPropagation()}>
-          {["on_track","at_risk","blocked","completed"].map((s) => (
-            <button
-              key={s}
-              onClick={() => onStatus(obj.id, s)}
-              className={`badge ${STATUS_BADGE[s]}`}
-              style={{ cursor: "pointer", border: obj.status === s ? "1px solid currentColor" : "1px solid transparent" }}
-            >
-              {STATUS_LABEL[s]}
-            </button>
-          ))}
-          {canDelete && (
-            <button onClick={() => onDelete(obj.id)} style={{ marginLeft: "auto", fontSize: "0.72rem", color: "var(--red)", background: "none", border: "none", cursor: "pointer" }}>Eliminar</button>
-          )}
+      <h4>{obj.title}</h4>
+      {obj.description && <p>{obj.description}</p>}
+      <div className="build-objective-meta">
+        <span>{obj._count?.signals ?? 0} evidence</span>
+        {obj.dueDate && <span className={overdue ? "is-overdue" : ""}>{overdue ? "Overdue · " : ""}{new Date(obj.dueDate).toLocaleDateString("en", { month: "short", day: "numeric" })}</span>}
+      </div>
+      {open && (
+        <div className="build-objective-actions" onClick={(e) => e.stopPropagation()}>
+          {COLUMNS.map((status) => <button key={status} className={obj.status === status ? "is-current" : ""} onClick={() => void onStatus(obj.id, status)}>{STATUS_LABEL[status]}</button>)}
+          {canDelete && <button className="is-delete" onClick={() => void onDelete(obj.id)}>Delete</button>}
         </div>
       )}
-    </div>
+    </article>
   );
 }
