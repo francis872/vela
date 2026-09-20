@@ -7,6 +7,7 @@ import { metricResult, type MetricResult } from "@/lib/functional-contracts";
 import { synthesizeHomeIntelligence } from "@/lib/home-intelligence";
 import { capturePulseSnapshot, getPulseTrend } from "@/lib/pulse-history";
 import { analyzeRootCause } from "@/lib/root-cause-intelligence";
+import { listInterventions, proposeIntervention, updateInterventionOutcomes } from "@/lib/intervention-engine";
 
 export const dynamic = "force-dynamic";
 
@@ -209,6 +210,16 @@ export async function GET(req: NextRequest) {
   });
   const history = await getPulseTrend(ownerId);
   const rootCause = analyzeRootCause(history.points);
+  const interventionMetrics = {
+    velocity: velocityValue,
+    validation: validationValue,
+    risk: typeof metrics.risk.value === "number" ? metrics.risk.value : null,
+    readiness: typeof metrics.readiness.value === "number" ? metrics.readiness.value : null,
+    sprintCompletion,
+  };
+  await updateInterventionOutcomes(ownerId, interventionMetrics);
+  const interventions = await listInterventions(ownerId);
+  const interventionProposal = proposeIntervention({ command, rootCause, metrics: interventionMetrics });
 
   const ai = synthesizeHomeIntelligence({
     command,
@@ -240,6 +251,8 @@ export async function GET(req: NextRequest) {
     currentSprint,
     trajectory: { assessment: trajectory, executionRisk, validationRisk, history, rootCause },
     nextActions,
+    interventions,
+    interventionProposal,
     activity,
     activitySource: "persisted_domain_records",
     ai,
