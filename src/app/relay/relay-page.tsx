@@ -16,6 +16,24 @@ type Thread = {
   createdAt: string;
 };
 
+type RelayIntelligence = {
+  status: "ATTENTION" | "FOCUS" | "STABLE" | "SETUP";
+  title: string;
+  explanation: string;
+  action: { label: string; target: "BLOCKERS" | "DECISIONS" | "NETWORK" | "PUBLISH" };
+  confidence: "LOW" | "MEDIUM" | "HIGH";
+  focus: string;
+  health: {
+    openBlockers: number;
+    staleBlockers: number;
+    pendingDecisions: number;
+    staleDecisions: number;
+    recentActivity: number;
+    connections: number;
+    collaborationConnections: number;
+  };
+};
+
 type Decision = {
   id: string;
   title: string;
@@ -44,6 +62,7 @@ export default function RelayPage({ session }: { session: Session }) {
   const [form, setForm] = useState({ title: "", body: "", category: "update" });
 
   const [activeTab, setActiveTab] = useState<"feed" | "decisions" | "red">("feed");
+  const [intelligence, setIntelligence] = useState<RelayIntelligence | null>(null);
 
   // Decision Log state
   const [decisions, setDecisions] = useState<Decision[]>([]);
@@ -55,9 +74,17 @@ export default function RelayPage({ session }: { session: Session }) {
   async function load() {
     setLoading(true);
     try {
-      const [tRes, dRes] = await Promise.all([fetch("/api/threads?limit=50"), fetch("/api/decisions")]);
+      const [tRes, dRes, iRes] = await Promise.all([
+        fetch("/api/threads?limit=50", { cache: "no-store" }),
+        fetch("/api/decisions", { cache: "no-store" }),
+        fetch("/api/relay/intelligence", { cache: "no-store" }),
+      ]);
       if (tRes.ok) setThreads(await tRes.json());
       if (dRes.ok) setDecisions(await dRes.json());
+      if (iRes.ok) {
+        const payload = await iRes.json();
+        setIntelligence(payload.intelligence ?? null);
+      }
     } finally { setLoading(false); }
   }
 
@@ -148,21 +175,20 @@ export default function RelayPage({ session }: { session: Session }) {
     return acc;
   }, {} as Record<string, number>);
 
-  const blockers = counts.blocker ?? 0;
-  const pendingDecisions = decisions.filter((d) => !d.outcome).length;
-  const relayStatus = blockers > 0 ? "ATTENTION" : pendingDecisions > 0 ? "FOCUS" : threads.length || decisions.length ? "STABLE" : "SETUP";
-  const relayTitle = blockers > 0
-    ? "Collaboration is being constrained by open blockers."
-    : pendingDecisions > 0
-      ? "Decisions are waiting for outcome evidence."
-      : threads.length || decisions.length
-        ? "The collaboration loop is active."
-        : "Create the first shared operating signal.";
-  const relayExplanation = blockers > 0
-    ? `${blockers} blocker(s) are visible in Relay. Resolve or route them before they become silent execution debt.`
-    : pendingDecisions > 0
-      ? `${pendingDecisions} decision(s) still have no recorded outcome. Close the learning loop by documenting what happened.`
-      : "Updates, decisions and collaboration signals are available without a dominant unresolved constraint.";
+  const blockers = intelligence?.health.openBlockers ?? counts.blocker ?? 0;
+  const pendingDecisions = intelligence?.health.pendingDecisions ?? decisions.filter((d) => !d.outcome).length;
+  const relayStatus = intelligence?.status ?? (blockers > 0 ? "ATTENTION" : pendingDecisions > 0 ? "FOCUS" : threads.length || decisions.length ? "STABLE" : "SETUP");
+  const relayTitle = intelligence?.title ?? "Create the first shared operating signal.";
+  const relayExplanation = intelligence?.explanation ?? "VELA needs collaboration activity before it can assess Relay health.";
+
+  function runRelayAction() {
+    const target = intelligence?.action.target;
+    if (target === "BLOCKERS") { setActiveTab("feed"); setFilter("blocker"); return; }
+    if (target === "DECISIONS") { setActiveTab("decisions"); return; }
+    if (target === "NETWORK") { setActiveTab("red"); return; }
+    setActiveTab("feed");
+    setShowForm(true);
+  }
 
   return (
     <div className="relay-shell">
@@ -185,23 +211,23 @@ export default function RelayPage({ session }: { session: Session }) {
           <span className="relay-command-status">{relayStatus}</span>
         </div>
         <div>
-          <span className="relay-command-kicker">{blockers ? "Open blockers" : pendingDecisions ? "Decision learning" : "Collaboration health"}</span>
+          <span className="relay-command-kicker">{intelligence?.focus ?? (blockers ? "Open blockers" : pendingDecisions ? "Decision learning" : "Collaboration health")}</span>
           <h2>{relayTitle}</h2>
           <p>{relayExplanation}</p>
         </div>
         <div className="relay-command-action">
-          <button className="btn-primary" onClick={() => blockers ? setFilter("blocker") : pendingDecisions ? setActiveTab("decisions") : setShowForm(true)}>
-            {blockers ? "Review blockers" : pendingDecisions ? "Review decisions" : "Publish update"} <span aria-hidden="true">→</span>
+          <button className="btn-primary" onClick={runRelayAction}>
+            {intelligence?.action.label ?? (blockers ? "Review blockers" : pendingDecisions ? "Review decisions" : "Publish update")} <span aria-hidden="true">→</span>
           </button>
-          <small>Derived from persisted collaboration activity</small>
+          <small>{intelligence?.confidence ?? "LOW"} confidence · persisted collaboration evidence</small>
         </div>
       </section>
 
       <section className="relay-intelligence-strip">
         <RelayStat label="Updates" value={counts.update ?? 0} note="operating signals" />
-        <RelayStat label="Blockers" value={blockers} note="need collaboration" />
+        <RelayStat label="Blockers" value={blockers} note={intelligence?.health.staleBlockers ? `${intelligence.health.staleBlockers} stale` : "need collaboration"} />
         <RelayStat label="Decisions" value={decisions.length} note={`${pendingDecisions} awaiting outcome`} />
-        <RelayStat label="Wins" value={counts.win ?? 0} note="completed milestones" />
+        <RelayStat label="Network" value={intelligence?.health.connections ?? 0} note={`${intelligence?.health.collaborationConnections ?? 0} collaboration paths`} />
       </section>
 
       {/* Tab bar */}
