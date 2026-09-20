@@ -5,6 +5,7 @@ import { collectVentureStats } from "@/lib/venture-metrics";
 import { assessExecutionRisk, assessTrajectory, assessValidationGap } from "@/lib/predictions";
 import { metricResult, type MetricResult } from "@/lib/functional-contracts";
 import { synthesizeHomeIntelligence } from "@/lib/home-intelligence";
+import { capturePulseSnapshot, getPulseTrend } from "@/lib/pulse-history";
 
 export const dynamic = "force-dynamic";
 
@@ -190,6 +191,23 @@ export async function GET(req: NextRequest) {
                     affectedMetric: "Venture Pulse",
                   };
 
+  const sprintCompletion = currentSprint && currentSprint.items.length > 0
+    ? Math.round((currentSprint.items.filter((item) => item.done).length / currentSprint.items.length) * 100)
+    : null;
+
+  await capturePulseSnapshot({
+    ownerId,
+    velocity: velocityValue,
+    validation: validationValue,
+    risk: typeof metrics.risk.value === "number" ? metrics.risk.value : null,
+    readiness: typeof metrics.readiness.value === "number" ? metrics.readiness.value : null,
+    sprintCompletion,
+    trajectoryStatus: trajectory.status,
+    commandStatus: command.status,
+    commandPriority: command.priority,
+  });
+  const history = await getPulseTrend(ownerId);
+
   const ai = synthesizeHomeIntelligence({
     command,
     metrics: {
@@ -216,7 +234,7 @@ export async function GET(req: NextRequest) {
     metrics,
     command,
     currentSprint,
-    trajectory: { assessment: trajectory, executionRisk, validationRisk },
+    trajectory: { assessment: trajectory, executionRisk, validationRisk, history },
     nextActions,
     activity,
     activitySource: "persisted_domain_records",
