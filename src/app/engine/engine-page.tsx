@@ -528,8 +528,8 @@ export default function ExecutionEngine() {
       </div>
     </div>
   );
+}
 
 function EngineStat({ label, value, note }: { label: string; value: string | number; note: string }) {
   return <div className="engine-stat"><span>{label}</span><strong>{value}</strong><small>{note}</small></div>;
-}
 }
