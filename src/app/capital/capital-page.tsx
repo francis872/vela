@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { CapitalReadinessResponse } from "@/lib/functional-contracts";
 import ValuationLab from "./valuation-lab";
 import InvestorIntelligenceLab from "./investor-intelligence-lab";
+import CapitalDigitalTwin from "./capital-digital-twin";
 
 type Session = { name: string; email: string; role: string };
 
@@ -155,6 +156,7 @@ export default function CapitalPage({ session }: { session: Session }) {
       <div className="capital-workspace">
         <ValuationLab />
         <InvestorIntelligenceLab />
+        <CapitalDigitalTwin />
 
         {/* Readiness gauge */}
         <div className="os-card-accent" style={{ display: "flex", alignItems: "center", gap: "2rem", flexWrap: "wrap" }}>
