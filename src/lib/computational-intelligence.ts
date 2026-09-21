@@ -5,13 +5,17 @@ import { propagateRisk } from "@/lib/algorithms/risk-propagation";
 import { rankRbfMatches } from "@/lib/algorithms/rbf-similarity";
 import { optimizeExecutionPlan } from "@/lib/algorithms/ssa-aco-optimizer";
 import { algorithmSignature, getAlgorithmParameters, learnFromAlgorithmOutcomes, recordAlgorithmRun } from "@/lib/algorithm-learning";
+import { evaluateGovernance, getGovernedParameters } from "@/lib/algorithm-governance";
 
 const baseRisk = (status: string) =>
   status === "blocked" ? 1 : status === "at_risk" ? 0.8 : status === "on_track" ? 0.25 : 0;
 
 export async function computeVelaAlgorithms(ownerId: string) {
   await learnFromAlgorithmOutcomes(ownerId);
-  const learnedParameters = await getAlgorithmParameters(ownerId);
+  const adaptiveParameters = await getAlgorithmParameters(ownerId);
+  const governed = await getGovernedParameters(ownerId, adaptiveParameters);
+  const learnedParameters = governed.parameters;
+  const governance = await evaluateGovernance(ownerId);
   const venture = await prisma.venture.findUnique({ where: { userId: ownerId }, select: { id: true } });
 
   const [objectives, dependencies, assignments, resourceAllocations, pulse] = await Promise.all([
@@ -188,10 +192,15 @@ export async function computeVelaAlgorithms(ownerId: string) {
 
   return {
     generatedAt: new Date().toISOString(),
+    governance: {
+      championVersion: governed.version,
+      evaluation: governance,
+    },
     learning: {
-      mode: learnedParameters.sampleCount > 0 ? "ADAPTIVE" : "DEFAULT",
-      sampleCount: learnedParameters.sampleCount,
-      parameters: learnedParameters,
+      mode: adaptiveParameters.sampleCount > 0 ? "ADAPTIVE_AVAILABLE" : "DEFAULT",
+      activeMode: governed.version === "v2-adaptive" ? "ADAPTIVE" : "GOVERNED_DEFAULT",
+      sampleCount: adaptiveParameters.sampleCount,
+      activeParameters: learnedParameters,
     },
     priority: {
       algorithm: "VELA_PRIORITY_ENGINE_V1",
