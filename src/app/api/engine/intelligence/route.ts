@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { collectVentureStats } from "@/lib/venture-metrics";
 import { assessExecutionRisk, assessTrajectory, assessValidationGap } from "@/lib/predictions";
 import { synthesizeEngineIntelligence } from "@/lib/engine-intelligence";
+import { computeVelaAlgorithms } from "@/lib/computational-intelligence";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +82,7 @@ export async function GET(req: NextRequest) {
   const trajectory = assessTrajectory(stats);
   const executionRisk = assessExecutionRisk(stats);
   const validationRisk = assessValidationGap(stats);
+  const algorithms = await computeVelaAlgorithms(ownerId);
   const intelligence = synthesizeEngineIntelligence({
     activeSprint,
     genome: { shi, pmf, risk, velocity, readiness, health, momentum },
@@ -92,9 +94,19 @@ export async function GET(req: NextRequest) {
     },
   });
 
+  const executionPlan = {
+    selected: algorithms.optimization.selectedObjectives,
+    deferred: algorithms.optimization.deferredObjectives,
+    capacity: algorithms.optimization.capacity,
+    score: algorithms.optimization.plan.score,
+    systemicRisk: algorithms.risk.topSystemicRisks[0] ?? null,
+    historicalAnalogue: algorithms.similarity.closest,
+  };
+
   return NextResponse.json({
     generatedAt: new Date().toISOString(),
     intelligence,
+    executionPlan,
     activeSprint,
     operating: { shi, pmf, risk, velocity, readiness, health, momentum },
     trajectory: { status: trajectory.status, factors: trajectory.factors, executionRisk, validationRisk },
