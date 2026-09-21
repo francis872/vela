@@ -10,6 +10,7 @@ import { analyzeRootCause } from "@/lib/root-cause-intelligence";
 import { listInterventions, proposeIntervention, updateInterventionOutcomes } from "@/lib/intervention-engine";
 import { consolidateLearningMemory, recallLearning } from "@/lib/learning-memory";
 import { consolidateDecisionLearning, recallDecisionLearning } from "@/lib/decision-learning-memory";
+import { computeVelaAlgorithms } from "@/lib/computational-intelligence";
 
 export const dynamic = "force-dynamic";
 
@@ -246,6 +247,25 @@ export async function GET(req: NextRequest) {
     commandTitle: command.title,
   });
 
+  const algorithms = await computeVelaAlgorithms(ownerId);
+  const algorithmicContext = {
+    topPriority: algorithms.priority.top ? {
+      id: algorithms.priority.top.id,
+      title: algorithms.priority.top.title,
+      score: algorithms.priority.top.score,
+      executable: algorithms.priority.top.executable,
+      reasons: algorithms.priority.top.reasons,
+    } : null,
+    systemicRisk: algorithms.risk.topSystemicRisks[0] ?? null,
+    historicalAnalogue: algorithms.similarity.closest,
+    executionPlan: {
+      selected: algorithms.optimization.selectedObjectives,
+      deferred: algorithms.optimization.deferredObjectives,
+      capacity: algorithms.optimization.capacity,
+      score: algorithms.optimization.plan.score,
+    },
+  };
+
   const ai = synthesizeHomeIntelligence({
     command,
     metrics: {
@@ -265,6 +285,7 @@ export async function GET(req: NextRequest) {
     history,
     rootCause,
     decisionMemory,
+    algorithms: algorithmicContext,
   });
 
   const phase = venture?.stage ? venture.stage : null;
@@ -281,6 +302,7 @@ export async function GET(req: NextRequest) {
     interventionProposal,
     learningMemory,
     decisionMemory,
+    algorithms: algorithmicContext,
     activity,
     activitySource: "persisted_domain_records",
     ai,
