@@ -1212,6 +1212,61 @@ model DecisionLearning {
   @@index([ownerId, effectiveness])
 }
 
+model AlgorithmRegistry {
+  id          String   @id @default(cuid())
+  ownerId     String
+  family      String
+  version     String
+  role        String   @default("challenger")
+  status      String   @default("active")
+  parameters  Json
+  metrics     Json?
+  activatedAt DateTime?
+  retiredAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([ownerId, family, version])
+  @@index([ownerId, family, role, status])
+}
+
+model AlgorithmExperiment {
+  id                String   @id @default(cuid())
+  ownerId           String
+  family            String
+  championVersion   String
+  challengerVersion String
+  status            String   @default("running")
+  minimumSamples    Int      @default(8)
+  promotionDelta    Float    @default(0.08)
+  rollbackDelta     Float    @default(0.12)
+  championScore     Float?
+  challengerScore   Float?
+  championSamples   Int      @default(0)
+  challengerSamples Int      @default(0)
+  startedAt         DateTime @default(now())
+  decidedAt         DateTime?
+  decision          String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([ownerId, family, status])
+}
+
+model AlgorithmGovernanceEvent {
+  id        String   @id @default(cuid())
+  ownerId   String
+  family    String
+  action    String
+  fromVersion String?
+  toVersion String?
+  reason    String
+  evidence  Json?
+  createdAt DateTime @default(now())
+
+  @@index([ownerId, family, createdAt])
+}
+
 model AlgorithmProfile {
   id                       String   @id @default(cuid())
   ownerId                  String   @unique
