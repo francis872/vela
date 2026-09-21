@@ -747,11 +747,56 @@ model Venture {
   cohorts           CohortVenture[]
   members           VentureMember[]
   assignments       WorkAssignment[]
+  financialSnapshots FinancialSnapshot[]
+  valuationCases     ValuationCase[]
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
   @@index([userId])
   @@index([stage])
+}
+
+model FinancialSnapshot {
+  id              String   @id @default(cuid())
+  ventureId       String
+  venture         Venture  @relation(fields: [ventureId], references: [id], onDelete: Cascade)
+  period          String
+  currency        String   @default("COP")
+  revenue         Float
+  cogs            Float?
+  operatingCosts  Float
+  cash            Float?
+  debt            Float?
+  customers       Int?
+  newCustomers    Int?
+  marketingSpend  Float?
+  churnRate       Float?
+  source          String   @default("manual")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([ventureId, period])
+  @@index([ventureId, period])
+}
+
+model ValuationCase {
+  id               String   @id @default(cuid())
+  ventureId        String
+  venture          Venture  @relation(fields: [ventureId], references: [id], onDelete: Cascade)
+  name             String
+  currency         String   @default("COP")
+  capitalRequested Float?
+  equityOffered    Float?
+  revenueMultiple  Float?
+  ebitdaMultiple   Float?
+  discountRate     Float?
+  terminalGrowth   Float?
+  projectedGrowth  Float?
+  result           Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([ventureId, createdAt])
 }
 
 model WorkAssignment {
