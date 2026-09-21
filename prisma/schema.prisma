@@ -662,18 +662,47 @@ model InspirePost {
 }
 
 model SpaceResource {
-  id         String   @id @default(cuid())
-  title      String
-  desc       String
-  tag        String   @default("Recurso")
-  url        String?
-  authorName String
-  ownerId    String
-  createdAt  DateTime @default(now())
+  id          String   @id @default(cuid())
+  title       String
+  desc        String
+  tag         String   @default("Recurso")
+  url         String?
+  authorName  String
+  ownerId     String
+  ventureId   String?
+  resourceType String  @default("knowledge")
+  status      String   @default("available")
+  criticality String   @default("normal")
+  monthlyCost Float?
+  ownerMemberId String?
+  usageStatus String   @default("unknown")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  allocations ResourceAllocation[]
 
   @@index([ownerId])
+  @@index([ventureId, status])
   @@index([tag])
+  @@index([resourceType])
   @@index([createdAt])
+}
+
+model ResourceAllocation {
+  id          String   @id @default(cuid())
+  resourceId  String
+  resource    SpaceResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  ventureId   String
+  workType    String
+  workId      String
+  workTitle   String
+  status      String   @default("active")
+  allocatedAt DateTime @default(now())
+  releasedAt  DateTime?
+
+  @@unique([resourceId, ventureId, workType, workId])
+  @@index([ventureId, status])
+  @@index([workType, workId])
 }
 
 // ─── VELA: Waitlist & MVP ─────────────────────────────────────────────────────
