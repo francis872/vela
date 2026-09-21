@@ -752,6 +752,7 @@ model Venture {
   forecastScenarios  ForecastScenario[]
   financialBenchmarks FinancialBenchmark[]
   iotFinancialSignals IoTFinancialSignal[]
+  capitalScenarios    CapitalScenario[]
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
@@ -852,6 +853,22 @@ model IoTFinancialSignal {
 
   @@index([ventureId, metric, observedAt])
   @@index([financialMetric])
+}
+
+model CapitalScenario {
+  id            String   @id @default(cuid())
+  ventureId     String
+  venture       Venture  @relation(fields: [ventureId], references: [id], onDelete: Cascade)
+  name          String
+  baseline      Json
+  changes       Json
+  assumptions   Json
+  result        Json
+  algorithmVersion String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([ventureId, createdAt])
 }
 
 model WorkAssignment {
