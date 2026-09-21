@@ -117,6 +117,7 @@ export default function ExecutionEngine() {
   const [sprintReviews, setSprintReviews] = useState<Record<string, SprintReview>>({});
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [intelligence, setIntelligence] = useState<EngineIntelligence | null>(null);
+  const [executionPlan, setExecutionPlan] = useState<any>(null);
 
   const total = score.execution + score.results + score.collaboration;
   const level = getLevel(total);
@@ -138,6 +139,7 @@ export default function ExecutionEngine() {
       if (intelligenceRes.ok) {
         const payload = await intelligenceRes.json();
         setIntelligence(payload.intelligence ?? null);
+        setExecutionPlan(payload.executionPlan ?? null);
       }
     } finally {
       if (!silent) setLoading(false);
@@ -251,6 +253,16 @@ export default function ExecutionEngine() {
           <small>{intelligence?.confidence ?? "LOW"} confidence · execution evidence</small>
         </div>
       </section>
+
+      {executionPlan && (
+        <section className="engine-algorithm-plan">
+          <div className="home-section-heading"><div><span className="home-eyebrow">Computational plan</span><h2>Execute now</h2></div><small>SSA/ACO · capacity {executionPlan.capacity} · plan score {executionPlan.score}</small></div>
+          <div className="engine-plan-grid">
+            <div><span className="home-eyebrow">Selected</span>{executionPlan.selected.length ? executionPlan.selected.map((item:any)=><article key={item.id}><strong>{item.title}</strong><small>priority {item.score} · {item.reasons?.slice(0,2).join(" · ") || "executable"}</small></article>) : <p>No executable objective fits the current constraints.</p>}</div>
+            <div><span className="home-eyebrow">Defer / unblock</span>{executionPlan.deferred.length ? executionPlan.deferred.map((item:any)=><article key={item.id}><strong>{item.title}</strong><small>{item.executable ? "outside optimized capacity" : "not executable"} · {item.reasons?.slice(0,2).join(" · ")}</small></article>) : <p>No deferred objective.</p>}</div>
+          </div>
+        </section>
+      )}
 
       {genome && (
         <section className="engine-intelligence-strip">
