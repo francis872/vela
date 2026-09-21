@@ -1212,6 +1212,43 @@ model DecisionLearning {
   @@index([ownerId, effectiveness])
 }
 
+model AlgorithmProfile {
+  id                       String   @id @default(cuid())
+  ownerId                  String   @unique
+  priorityWeights          Json
+  riskAttenuation          Float    @default(0.65)
+  rbfSigma                 Float    @default(0.35)
+  optimizerRiskPenalty     Float    @default(20)
+  optimizerCapacityPenalty Float    @default(0.25)
+  optimizerEvaporation     Float    @default(0.88)
+  optimizerExploration     Float    @default(0.18)
+  learningRate             Float    @default(0.08)
+  sampleCount              Int      @default(0)
+  lastLearnedAt            DateTime?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([sampleCount])
+}
+
+model AlgorithmRun {
+  id             String   @id @default(cuid())
+  ownerId        String
+  signature      String
+  algorithmSet   String
+  recommendations Json
+  parameters     Json
+  context        Json
+  outcomeScore   Float?
+  outcome        Json?
+  observedAt     DateTime?
+  createdAt      DateTime @default(now())
+
+  @@unique([ownerId, signature])
+  @@index([ownerId, createdAt])
+  @@index([ownerId, observedAt])
+}
+
 model DomainEventRecord {
   id         String   @id @default(cuid())
   ownerId    String
