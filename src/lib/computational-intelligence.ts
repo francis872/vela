@@ -4,11 +4,14 @@ import { rankPriorities } from "@/lib/algorithms/priority-engine";
 import { propagateRisk } from "@/lib/algorithms/risk-propagation";
 import { rankRbfMatches } from "@/lib/algorithms/rbf-similarity";
 import { optimizeExecutionPlan } from "@/lib/algorithms/ssa-aco-optimizer";
+import { algorithmSignature, getAlgorithmParameters, learnFromAlgorithmOutcomes, recordAlgorithmRun } from "@/lib/algorithm-learning";
 
 const baseRisk = (status: string) =>
   status === "blocked" ? 1 : status === "at_risk" ? 0.8 : status === "on_track" ? 0.25 : 0;
 
 export async function computeVelaAlgorithms(ownerId: string) {
+  await learnFromAlgorithmOutcomes(ownerId);
+  const learnedParameters = await getAlgorithmParameters(ownerId);
   const venture = await prisma.venture.findUnique({ where: { userId: ownerId }, select: { id: true } });
 
   const [objectives, dependencies, assignments, resourceAllocations, pulse] = await Promise.all([
@@ -50,6 +53,7 @@ export async function computeVelaAlgorithms(ownerId: string) {
   const risk = propagateRisk(
     objectives.map((objective) => ({ id: objective.id, baseRisk: baseRisk(objective.status) })),
     edges,
+    { attenuation: learnedParameters.riskAttenuation },
   );
 
   const dependencyMap = new Map<string, string[]>();
@@ -85,6 +89,7 @@ export async function computeVelaAlgorithms(ownerId: string) {
         resourceReady,
       };
     }),
+    { weights: learnedParameters.priorityWeights },
   );
 
   const activeMemberLoad = assignments
@@ -107,6 +112,12 @@ export async function computeVelaAlgorithms(ownerId: string) {
       dependencies: dependencyMap.get(candidate.id) ?? [],
     })),
     planningCapacity,
+    {
+      riskPenalty: learnedParameters.optimizerRiskPenalty,
+      capacityPenalty: learnedParameters.optimizerCapacityPenalty,
+      evaporation: learnedParameters.optimizerEvaporation,
+      exploration: learnedParameters.optimizerExploration,
+    },
   );
 
   const latest = pulse[0];
@@ -132,7 +143,7 @@ export async function computeVelaAlgorithms(ownerId: string) {
           readiness: point.readiness,
           sprintCompletion: point.sprintCompletion,
         }),
-        { minFeatures: 2 },
+        { minFeatures: 2, sigma: learnedParameters.rbfSigma },
       )
         .slice(0, 5)
         .map((match) => ({
@@ -165,8 +176,23 @@ export async function computeVelaAlgorithms(ownerId: string) {
       reasons: candidate.reasons,
     }));
 
+    const topFactors = ranked[0]?.factors ?? {};
+  const signature = algorithmSignature({ objectiveIds: objectives.map((objective) => objective.id), selected: plan.selected, topId: ranked[0]?.id });
+  await recordAlgorithmRun({
+    ownerId,
+    signature,
+    recommendations: { topId: ranked[0]?.id ?? null, selected: plan.selected, factors: topFactors },
+    parameters: learnedParameters,
+    context: { objectiveCount: objectives.length, capacity: planningCapacity, riskTop: risk.topSystemicRisks[0] ?? null },
+  });
+
   return {
     generatedAt: new Date().toISOString(),
+    learning: {
+      mode: learnedParameters.sampleCount > 0 ? "ADAPTIVE" : "DEFAULT",
+      sampleCount: learnedParameters.sampleCount,
+      parameters: learnedParameters,
+    },
     priority: {
       algorithm: "VELA_PRIORITY_ENGINE_V1",
       ranked,
