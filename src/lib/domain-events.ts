@@ -8,6 +8,8 @@ export type DomainEventMap = {
   interview_created: { signalId: string; ownerId: string; objectiveId: string | null };
   metric_recorded: { signalId: string; ownerId: string; objectiveId: string | null };
   capital_evaluated: { ownerId: string; readiness: number | null };
+  financial_snapshot_recorded: { snapshotId: string; ventureId: string; ownerId: string; period: string };
+  valuation_calculated: { valuationId: string; ventureId: string; ownerId: string; status: string };
   decision_created: { decisionId: string; ownerId: string };
   decision_outcome_recorded: { decisionId: string; ownerId: string };
   decision_learning_consolidated: { decisionId: string; ownerId: string; outcomeStatus: string };
