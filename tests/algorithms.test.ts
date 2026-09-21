@@ -40,4 +40,11 @@ assert.ok(plan.selected.includes("foundation"));
 assert.ok(plan.selected.includes("dependent"));
 assert.ok(!plan.selected.includes("noise"));
 
+const adaptivePlan=optimizeExecutionPlan([
+ {id:"safe",utility:60,cost:2,risk:.05,executable:true,dependencies:[]},
+ {id:"risky",utility:75,cost:2,risk:.9,executable:true,dependencies:[]},
+],2,{seed:872,iterations:8,ants:6,riskPenalty:40,exploration:.1,evaporation:.9});
+assert.ok(adaptivePlan.selected.includes("safe"));
+assert.ok(!adaptivePlan.selected.includes("risky"));
+
 console.log("Algorithm tests passed");
