@@ -4,6 +4,7 @@ import { useEffect, useState, FormEvent } from "react";
 import Link from "next/link";
 import type { CapitalReadinessResponse } from "@/lib/functional-contracts";
 import ValuationLab from "./valuation-lab";
+import InvestorIntelligenceLab from "./investor-intelligence-lab";
 
 type Session = { name: string; email: string; role: string };
 
@@ -153,6 +154,7 @@ export default function CapitalPage({ session }: { session: Session }) {
 
       <div className="capital-workspace">
         <ValuationLab />
+        <InvestorIntelligenceLab />
 
         {/* Readiness gauge */}
         <div className="os-card-accent" style={{ display: "flex", alignItems: "center", gap: "2rem", flexWrap: "wrap" }}>
