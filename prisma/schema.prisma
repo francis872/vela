@@ -749,6 +749,9 @@ model Venture {
   assignments       WorkAssignment[]
   financialSnapshots FinancialSnapshot[]
   valuationCases     ValuationCase[]
+  forecastScenarios  ForecastScenario[]
+  financialBenchmarks FinancialBenchmark[]
+  iotFinancialSignals IoTFinancialSignal[]
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
@@ -797,6 +800,58 @@ model ValuationCase {
   updatedAt        DateTime @updatedAt
 
   @@index([ventureId, createdAt])
+}
+
+model ForecastScenario {
+  id            String   @id @default(cuid())
+  ventureId     String
+  venture       Venture  @relation(fields: [ventureId], references: [id], onDelete: Cascade)
+  name          String
+  months        Int      @default(12)
+  revenueGrowth Float
+  costGrowth    Float
+  volatility    Float    @default(0.10)
+  simulations   Int      @default(1000)
+  seed          Int      @default(872)
+  result        Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([ventureId, createdAt])
+}
+
+model FinancialBenchmark {
+  id          String   @id @default(cuid())
+  ventureId   String
+  venture     Venture  @relation(fields: [ventureId], references: [id], onDelete: Cascade)
+  metric      String
+  value       Float
+  unit        String
+  cohort      String?
+  sourceName  String
+  sourceUrl   String?
+  observedAt  DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([ventureId, metric])
+  @@index([sourceName])
+}
+
+model IoTFinancialSignal {
+  id              String   @id @default(cuid())
+  ventureId       String
+  venture         Venture  @relation(fields: [ventureId], references: [id], onDelete: Cascade)
+  metric          String
+  value           Float
+  unit            String
+  financialMetric String?
+  conversionRate  Float?
+  source          String
+  observedAt      DateTime
+  createdAt       DateTime @default(now())
+
+  @@index([ventureId, metric, observedAt])
+  @@index([financialMetric])
 }
 
 model WorkAssignment {
