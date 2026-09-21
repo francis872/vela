@@ -46,6 +46,17 @@ export type HomeIntelligenceInput = {
     memories: unknown[];
     explanation: string;
   };
+  algorithms?: {
+    topPriority: { id: string; title: string; score: number; executable: boolean; reasons: string[] } | null;
+    systemicRisk: { id: string; propagatedRisk: number; downstreamAffected: number } | null;
+    historicalAnalogue: { snapshotId: string; capturedAt: string; similarity: number; distance: number; comparedFeatures: number } | null;
+    executionPlan: {
+      selected: { id: string; title: string; score: number; reasons: string[] }[];
+      deferred: { id: string; title: string; score: number; executable: boolean; reasons: string[] }[];
+      capacity: number;
+      score: number;
+    };
+  };
   history: {
     status: "AVAILABLE" | "INSUFFICIENT_DATA";
     direction: "IMPROVING" | "STABLE" | "DECLINING" | null;
@@ -92,6 +103,9 @@ function confidenceFromEvidence(input: HomeIntelligenceInput) {
   if (input.history.dynamics.status === "AVAILABLE") sources += 1;
   if (input.rootCause.status === "AVAILABLE") sources += 1;
   if (input.decisionMemory?.status === "AVAILABLE") sources += 1;
+  if (input.algorithms?.topPriority) sources += 1;
+  if (input.algorithms?.systemicRisk) sources += 1;
+  if (input.algorithms?.historicalAnalogue) sources += 1;
 
   if (sources >= 6) return "HIGH" as const;
   if (sources >= 3) return "MEDIUM" as const;
@@ -143,6 +157,21 @@ export function synthesizeHomeIntelligence(input: HomeIntelligenceInput): HomeIn
     }
   }
 
+  if (input.algorithms?.topPriority) {
+    evidence.push(`algorithm_priority:${input.algorithms.topPriority.score}`);
+    if (!input.algorithms.topPriority.executable) tensions.push(`The highest-priority objective — “${input.algorithms.topPriority.title}” — is not currently executable under dependency, capacity or resource constraints.`);
+  }
+  if (input.algorithms?.systemicRisk) {
+    evidence.push(`propagated_risk:${Math.round(input.algorithms.systemicRisk.propagatedRisk * 100)}`);
+    if (input.algorithms.systemicRisk.downstreamAffected > 0 && input.algorithms.systemicRisk.propagatedRisk >= 0.6) tensions.push(`A systemic risk path currently reaches ${input.algorithms.systemicRisk.downstreamAffected} downstream objective(s).`);
+  }
+  if (input.algorithms?.historicalAnalogue) {
+    evidence.push(`rbf_similarity:${Math.round(input.algorithms.historicalAnalogue.similarity * 100)}`);
+  }
+  if (input.algorithms?.executionPlan.selected.length) {
+    evidence.push(`optimized_plan_items:${input.algorithms.executionPlan.selected.length}`);
+  }
+
   const confidence = confidenceFromEvidence(input);
   const dynamicState = input.history.dynamics.state;
   if (input.history.status === "AVAILABLE") {
@@ -152,6 +181,21 @@ export function synthesizeHomeIntelligence(input: HomeIntelligenceInput): HomeIn
   if (input.history.dynamics.status === "AVAILABLE" && dynamicState) {
     evidence.push(`trajectory_dynamics:${dynamicState.toLowerCase()}`);
     if (input.history.dynamics.accelerationPerDay2 !== null) evidence.push(`trajectory_acceleration:${input.history.dynamics.accelerationPerDay2}`);
+  }
+
+  if (input.algorithms?.systemicRisk && input.algorithms.systemicRisk.propagatedRisk >= 0.75 && input.algorithms.systemicRisk.downstreamAffected > 0) {
+    const top = input.algorithms.topPriority;
+    const plan = input.algorithms.executionPlan.selected;
+    return {
+      type: "STRATEGIC_INTERPRETATION",
+      title: "A systemic execution risk is propagating.",
+      thesis: "The dependency graph shows that current risk is not isolated to one objective.",
+      body: `Propagated risk is ${Math.round(input.algorithms.systemicRisk.propagatedRisk * 100)}% across a path affecting ${input.algorithms.systemicRisk.downstreamAffected} downstream objective(s).${top ? ` The current algorithmic priority is “${top.title}” with score ${top.score}.` : ""}${plan.length ? ` The optimized executable set currently contains ${plan.length} objective(s).` : ""} Treat this as model-supported prioritization, not certainty.`,
+      confidence,
+      evidence: [...new Set(evidence)],
+      tensions,
+      focus: top?.title ?? "Systemic execution risk",
+    };
   }
 
   if (dynamicState === "TURNING_NEGATIVE") {
