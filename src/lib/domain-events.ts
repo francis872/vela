@@ -16,6 +16,10 @@ export type DomainEventMap = {
   team_member_updated: { memberId: string; ventureId: string; ownerId: string; status: string };
   team_work_assigned: { assignmentId: string; memberId: string; ventureId: string; ownerId: string; workType: string; workId: string };
   team_work_updated: { assignmentId: string; memberId: string; ventureId: string; ownerId: string; status: string };
+  resource_created: { resourceId: string; ventureId: string; ownerId: string; resourceType: string };
+  resource_updated: { resourceId: string; ownerId: string; status: string };
+  resource_allocated: { allocationId: string; resourceId: string; ventureId: string; ownerId: string; workType: string; workId: string };
+  resource_allocation_updated: { allocationId: string; resourceId: string; ventureId: string; ownerId: string; status: string };
   gate_created: { gateId: string; ownerId: string };
   gate_updated: { gateId: string; ownerId: string; status: string };
   intervention_started: { interventionId: string; ownerId: string; targetMetric: string };
