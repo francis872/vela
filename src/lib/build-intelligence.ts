@@ -1,5 +1,6 @@
 import { analyzeCoverage, analyzeGraph, type CoverageNode, type GraphEdge, type GraphNode } from "@/lib/graph";
 import { rankPriorities } from "@/lib/algorithms/priority-engine";
+import { propagateRisk } from "@/lib/algorithms/risk-propagation";
 
 export type BuildObjectiveInput = CoverageNode & {
   priority: number;
@@ -26,6 +27,12 @@ export type BuildIntelligence = {
     ratio: number;
     blindSpots: { id: string; title: string; priority: number }[];
     nextToValidate: string | null;
+  };
+  computationalRisk: {
+    topSystemicRiskId: string | null;
+    topSystemicRiskTitle: string | null;
+    propagatedRisk: number | null;
+    downstreamAffected: number;
   };
   optimization: {
     topPriorityId: string | null;
@@ -109,6 +116,20 @@ export function synthesizeBuildIntelligence(input: {
     `coverage:${Math.round(coverage.coverageRatio * 100)}`,
   ];
   const resultConfidence = confidence(input);
+  const propagatedRisk = propagateRisk(
+    input.objectives.map((objective) => ({
+      id: objective.id,
+      baseRisk: objective.status === "blocked" ? 1 : objective.status === "at_risk" ? 0.8 : objective.status === "on_track" ? 0.25 : 0,
+    })),
+    input.edges,
+  );
+  const systemic = propagatedRisk.topSystemicRisks[0] ?? null;
+  const computationalRisk = {
+    topSystemicRiskId: systemic?.id ?? null,
+    topSystemicRiskTitle: systemic ? byId.get(systemic.id)?.title ?? systemic.id : null,
+    propagatedRisk: systemic?.propagatedRisk ?? null,
+    downstreamAffected: systemic?.downstreamAffected ?? 0,
+  };
   const optimizationRanking = rankPriorities(input.objectives.map((objective) => ({
     id: objective.id,
     title: objective.title,
@@ -143,6 +164,7 @@ export function synthesizeBuildIntelligence(input: {
       evidence: baseEvidence,
       graph: { criticalPath: [], criticalPathTitles: [], topBlockers: [], riskCascades: [], hasCycle: false },
       coverage: { ratio: 0, blindSpots: [], nextToValidate: null },
+      computationalRisk,
       optimization,
       prematureWork: [],
     };
@@ -160,6 +182,7 @@ export function synthesizeBuildIntelligence(input: {
       evidence: [...baseEvidence, `cycle_edges:${graph.cycleEdges.length}`],
       graph: { criticalPath: graph.criticalPath, criticalPathTitles, topBlockers, riskCascades, hasCycle: true },
       coverage: { ratio: coverage.coverageRatio, blindSpots, nextToValidate: coverage.nextToValidate },
+      computationalRisk,
       optimization,
       prematureWork,
     };
@@ -178,6 +201,7 @@ export function synthesizeBuildIntelligence(input: {
       evidence: [...baseEvidence, `risk_cascade:${dominantCascade.affected}`],
       graph: { criticalPath: graph.criticalPath, criticalPathTitles, topBlockers, riskCascades, hasCycle: false },
       coverage: { ratio: coverage.coverageRatio, blindSpots, nextToValidate: coverage.nextToValidate },
+      computationalRisk,
       optimization,
       prematureWork,
     };
@@ -196,6 +220,7 @@ export function synthesizeBuildIntelligence(input: {
       evidence: [...baseEvidence, `unmet_dependencies:${premature.unmetDependencies.length}`],
       graph: { criticalPath: graph.criticalPath, criticalPathTitles, topBlockers, riskCascades, hasCycle: false },
       coverage: { ratio: coverage.coverageRatio, blindSpots, nextToValidate: coverage.nextToValidate },
+      computationalRisk,
       optimization,
       prematureWork,
     };
@@ -214,6 +239,7 @@ export function synthesizeBuildIntelligence(input: {
       evidence: [...baseEvidence, `blind_spots:${blindSpots.length}`],
       graph: { criticalPath: graph.criticalPath, criticalPathTitles, topBlockers, riskCascades, hasCycle: false },
       coverage: { ratio: coverage.coverageRatio, blindSpots, nextToValidate: coverage.nextToValidate },
+      computationalRisk,
       optimization,
       prematureWork,
     };
