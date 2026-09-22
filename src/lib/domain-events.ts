@@ -14,6 +14,7 @@ export type DomainEventMap = {
   iot_financial_signal_recorded: { signalId: string; ventureId: string; ownerId: string; metric: string };
   capital_scenario_simulated: { scenarioId: string; ventureId: string; ownerId: string; algorithmVersion: string };
   capital_scenario_optimized: { scenarioId: string; ventureId: string; ownerId: string; score: number; feasible: boolean };
+  fundraising_plan_created: { planId: string; ventureId: string; ownerId: string; targetRaise: number; timing: string };
   decision_created: { decisionId: string; ownerId: string };
   decision_outcome_recorded: { decisionId: string; ownerId: string };
   decision_learning_consolidated: { decisionId: string; ownerId: string; outcomeStatus: string };
