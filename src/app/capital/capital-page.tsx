@@ -10,6 +10,7 @@ import ScenarioOptimizer from "./scenario-optimizer";
 import FundraisingIntelligence from "./fundraising-intelligence";
 import CapitalExecution from "./capital-execution";
 import CapitalDeploymentLedger from "./capital-deployment-ledger";
+import CapitalLearningIntelligence from "./capital-learning-intelligence";
 
 type Session = { name: string; email: string; role: string };
 
@@ -165,6 +166,7 @@ export default function CapitalPage({ session }: { session: Session }) {
         <FundraisingIntelligence />
         <CapitalExecution />
         <CapitalDeploymentLedger />
+        <CapitalLearningIntelligence />
 
         {/* Readiness gauge */}
         <div className="os-card-accent" style={{ display: "flex", alignItems: "center", gap: "2rem", flexWrap: "wrap" }}>
