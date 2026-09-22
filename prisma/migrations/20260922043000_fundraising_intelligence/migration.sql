@@ -1,0 +1,5 @@
+CREATE TABLE "FundraisingPlan" (
+"id" TEXT NOT NULL,"ventureId" TEXT NOT NULL,"name" TEXT NOT NULL,"targetRaise" DOUBLE PRECISION NOT NULL,"equityOffered" DOUBLE PRECISION,"targetRunway" INTEGER NOT NULL,"timing" TEXT NOT NULL,"useOfFunds" JSONB NOT NULL,"milestones" JSONB NOT NULL,"nextRound" JSONB,"assumptions" JSONB NOT NULL,"result" JSONB NOT NULL,"algorithmVersion" TEXT,"status" TEXT NOT NULL DEFAULT 'draft',"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL,
+CONSTRAINT "FundraisingPlan_pkey" PRIMARY KEY ("id"),CONSTRAINT "FundraisingPlan_ventureId_fkey" FOREIGN KEY ("ventureId") REFERENCES "Venture"("id") ON DELETE CASCADE ON UPDATE CASCADE);
+CREATE INDEX "FundraisingPlan_ventureId_createdAt_idx" ON "FundraisingPlan"("ventureId","createdAt");
+CREATE INDEX "FundraisingPlan_status_idx" ON "FundraisingPlan"("status");
