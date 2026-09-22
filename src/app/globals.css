@@ -1045,3 +1045,5 @@ h1, h2, h3, h4 { letter-spacing: -0.025em; font-weight: 700; }
 .capital-execution{display:grid;gap:1rem;padding-top:.5rem}.capital-execution .valuation-head p{max-width:760px}.capital-execution .btn-primary{align-self:center;white-space:nowrap}
 
 .deployment-ledger{display:grid;gap:1rem;padding-top:.5rem}.deployment-list{display:grid;gap:.6rem}.deployment-list article{display:grid;gap:.45rem;padding:.8rem;background:var(--surface-2);border:1px solid var(--border)}.deployment-list article>div:first-child{display:flex;justify-content:space-between;gap:.5rem;align-items:center}.deployment-list b{font-size:.72rem}.deployment-list small{font-size:.62rem;color:var(--ink-3)}.deployment-actions{display:flex;flex-wrap:wrap;gap:.4rem}.deployment-actions button{border:1px solid var(--border);background:var(--surface);color:var(--ink-2);padding:.4rem .55rem;font-size:.61rem;cursor:pointer}
+
+.capital-learning{display:grid;gap:1rem;padding-top:.5rem}.capital-learning .valuation-head p{max-width:760px}
