@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import CommandIntelligenceV2 from "./command-intelligence-v2";
 
 /* ─────────────────────────── types ───────────────────────────────────── */
 type Session = { name: string; email: string; role: string };
@@ -254,6 +255,8 @@ export default function CommandDashboard({ session }: { session: Session }) {
           {loading ? "\u2014" : mission}
         </span>
       </div>
+
+      <CommandIntelligenceV2 />
 
       {/* ── MAIN GRID ──────────────────────────────────────────────────────── */}
       <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 290px" }}>
