@@ -753,6 +753,7 @@ model Venture {
   financialBenchmarks FinancialBenchmark[]
   iotFinancialSignals IoTFinancialSignal[]
   capitalScenarios    CapitalScenario[]
+  fundraisingPlans    FundraisingPlan[]
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
@@ -869,6 +870,29 @@ model CapitalScenario {
   updatedAt     DateTime @updatedAt
 
   @@index([ventureId, createdAt])
+}
+
+model FundraisingPlan {
+  id               String   @id @default(cuid())
+  ventureId        String
+  venture          Venture  @relation(fields: [ventureId], references: [id], onDelete: Cascade)
+  name             String
+  targetRaise      Float
+  equityOffered    Float?
+  targetRunway     Int
+  timing           String
+  useOfFunds       Json
+  milestones       Json
+  nextRound        Json?
+  assumptions      Json
+  result           Json
+  algorithmVersion String?
+  status           String   @default("draft")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([ventureId, createdAt])
+  @@index([status])
 }
 
 model WorkAssignment {
