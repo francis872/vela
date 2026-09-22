@@ -7,6 +7,7 @@ import ValuationLab from "./valuation-lab";
 import InvestorIntelligenceLab from "./investor-intelligence-lab";
 import CapitalDigitalTwin from "./capital-digital-twin";
 import ScenarioOptimizer from "./scenario-optimizer";
+import FundraisingIntelligence from "./fundraising-intelligence";
 
 type Session = { name: string; email: string; role: string };
 
@@ -159,6 +160,7 @@ export default function CapitalPage({ session }: { session: Session }) {
         <InvestorIntelligenceLab />
         <CapitalDigitalTwin />
         <ScenarioOptimizer />
+        <FundraisingIntelligence />
 
         {/* Readiness gauge */}
         <div className="os-card-accent" style={{ display: "flex", alignItems: "center", gap: "2rem", flexWrap: "wrap" }}>
