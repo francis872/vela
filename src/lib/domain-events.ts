@@ -15,6 +15,7 @@ export type DomainEventMap = {
   capital_scenario_simulated: { scenarioId: string; ventureId: string; ownerId: string; algorithmVersion: string };
   capital_scenario_optimized: { scenarioId: string; ventureId: string; ownerId: string; score: number; feasible: boolean };
   fundraising_plan_created: { planId: string; ventureId: string; ownerId: string; targetRaise: number; timing: string };
+  fundraising_plan_activated: { planId: string; ventureId: string; ownerId: string; targetRaise: number };
   decision_created: { decisionId: string; ownerId: string };
   decision_outcome_recorded: { decisionId: string; ownerId: string };
   decision_learning_consolidated: { decisionId: string; ownerId: string; outcomeStatus: string };
