@@ -754,6 +754,7 @@ model Venture {
   iotFinancialSignals IoTFinancialSignal[]
   capitalScenarios    CapitalScenario[]
   fundraisingPlans    FundraisingPlan[]
+  capitalDeployments  CapitalDeployment[]
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
@@ -888,11 +889,47 @@ model FundraisingPlan {
   result           Json
   algorithmVersion String?
   status           String   @default("draft")
+  deployments      CapitalDeployment[]
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   @@index([ventureId, createdAt])
   @@index([status])
+}
+
+model CapitalDeployment {
+  id             String   @id @default(cuid())
+  ventureId      String
+  venture        Venture  @relation(fields: [ventureId], references: [id], onDelete: Cascade)
+  fundraisingPlanId String
+  fundraisingPlan FundraisingPlan @relation(fields: [fundraisingPlanId], references: [id], onDelete: Cascade)
+  category       String
+  title          String
+  plannedAmount  Float
+  committedAmount Float   @default(0)
+  spentAmount    Float    @default(0)
+  status         String   @default("planned")
+  workType       String?
+  workId         String?
+  memberId       String?
+  resourceId     String?
+  milestone      String?
+  expectedOutcome String?
+  actualOutcome  String?
+  outcomeValue   Float?
+  roi            Float?
+  learning       String?
+  committedAt    DateTime?
+  spentAt        DateTime?
+  closedAt       DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([ventureId, status])
+  @@index([fundraisingPlanId, category])
+  @@index([workType, workId])
+  @@index([memberId])
+  @@index([resourceId])
 }
 
 model WorkAssignment {
