@@ -1,0 +1,2 @@
+import type {VentureState} from "../state/venture-state";import {buildFeatureSet,num} from "./feature";
+export function riskFeatures(s:VentureState){const summary=(s.risk.latestAssessment?.summary??{}) as Record<string,unknown>;const values={openSignals:s.risk.openSignals,assessmentConfidence:s.risk.latestAssessment?.confidence??null,resilienceIndex:num(summary.resilienceIndex),pulseRisk:s.pulse.risk};const src=Object.fromEntries(Object.keys(values).map(k=>[k,{source:"VentureState.risk",path:k==="pulseRisk"?"pulse.risk":"risk"}]));return buildFeatureSet("risk",values,src);}
