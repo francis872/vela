@@ -1,0 +1,2 @@
+import type {VentureState} from "../state/venture-state";import {buildFeatureSet} from "./feature";
+export function marketFeatures(s:VentureState){const values={validationSignals:s.validation.signals,customerCount:null,customerGrowth:null,conversionRate:null,marketDensity:null};const src=Object.fromEntries(Object.keys(values).map(k=>[k,{source:"VentureState",path:k==="validationSignals"?"validation.signals":"market.unavailable"}]));return buildFeatureSet("market",values,src);}
