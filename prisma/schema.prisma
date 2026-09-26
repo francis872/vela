@@ -1107,6 +1107,25 @@ model DataConsent {
   @@index([organizationId, domain, status])
 }
 
+model ComputationalStateSnapshot {
+  id             String   @id @default(cuid())
+  ownerId        String
+  scope          String
+  subjectId      String
+  organizationId String?
+  version        String
+  fingerprint    String
+  completeness   Float
+  confidence     Float
+  state          Json
+  capturedAt     DateTime @default(now())
+
+  @@index([ownerId, scope, capturedAt])
+  @@index([scope, subjectId, capturedAt])
+  @@index([organizationId, capturedAt])
+  @@unique([scope, subjectId, fingerprint])
+}
+
 model WorkAssignment {
   id          String   @id @default(cuid())
   ventureId   String
