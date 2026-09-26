@@ -70,6 +70,9 @@ model User {
   aiConversations   AIConversation[] @relation("AIConversations")
   realtimeConnections RealtimeConnection[] @relation("RealtimeConnections")
   aiProcessingQueues AIProcessingQueue[] @relation("AIProcessingQueues")
+  financialDiscoveriesOwned FinancialDiscovery[] @relation("FinancialDiscoveryOwner")
+  dataConsentsGranted DataConsent[] @relation("ConsentGrantor")
+  dataConsentsReceived DataConsent[] @relation("ConsentGrantee")
 
   @@index([role])
   @@index([active])
@@ -755,6 +758,12 @@ model Venture {
   capitalScenarios    CapitalScenario[]
   fundraisingPlans    FundraisingPlan[]
   capitalDeployments  CapitalDeployment[]
+  riskAssessments     RiskAssessment[]
+  resilienceSnapshots ResilienceSnapshot[]
+  financialDiscoveries FinancialDiscovery[]
+  protectionGaps      ProtectionGap[]
+  financialProtectionScenarios FinancialProtectionScenario[]
+  financialActions    FinancialAction[]
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
@@ -932,6 +941,172 @@ model CapitalDeployment {
   @@index([resourceId])
 }
 
+model RiskAssessment {
+  id          String   @id @default(cuid())
+  ventureId   String
+  venture     Venture  @relation(fields: [ventureId], references: [id], onDelete: Cascade)
+  ownerId     String
+  scope       String   @default("enterprise")
+  status      String   @default("active")
+  dimensions  Json
+  summary     Json
+  confidence  Float
+  version     String   @default("RISK_V1")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  signals     RiskSignal[]
+
+  @@index([ventureId, createdAt])
+  @@index([ownerId])
+  @@index([status])
+}
+
+model RiskSignal {
+  id            String   @id @default(cuid())
+  assessmentId  String
+  assessment    RiskAssessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  dimension     String
+  signal        String
+  evidence      String
+  exposure      Float
+  probability   Float
+  impact        Float
+  confidence    Float
+  action        String?
+  ownerLabel    String?
+  targetMetric  String?
+  currentValue  Float?
+  targetValue   Float?
+  status        String   @default("open")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([assessmentId, dimension])
+  @@index([status])
+}
+
+model ResilienceSnapshot {
+  id          String   @id @default(cuid())
+  ventureId   String
+  venture     Venture  @relation(fields: [ventureId], references: [id], onDelete: Cascade)
+  score       Float
+  components  Json
+  evidence    Json
+  capturedAt  DateTime @default(now())
+
+  @@index([ventureId, capturedAt])
+}
+
+model PortfolioRiskSnapshot {
+  id              String   @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  enterpriseCount Int
+  criticalSignals Int
+  interventions   Int
+  mitigated       Int
+  distribution    Json
+  capturedAt      DateTime @default(now())
+
+  @@index([organizationId, capturedAt])
+}
+
+model FinancialDiscovery {
+  id            String   @id @default(cuid())
+  ventureId     String?
+  venture       Venture? @relation(fields: [ventureId], references: [id], onDelete: SetNull)
+  ownerId       String
+  owner         User     @relation("FinancialDiscoveryOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  household     Json
+  income        Json
+  expenses      Json
+  assets        Json
+  liabilities   Json
+  dependents    Json
+  protections   Json
+  goals         Json
+  horizonMonths Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  gaps          ProtectionGap[]
+  scenarios     FinancialProtectionScenario[]
+  actions       FinancialAction[]
+
+  @@index([ownerId, createdAt])
+  @@index([ventureId])
+}
+
+model ProtectionGap {
+  id          String   @id @default(cuid())
+  discoveryId String
+  discovery   FinancialDiscovery @relation(fields: [discoveryId], references: [id], onDelete: Cascade)
+  category    String
+  needAmount  Float?
+  protectedAmount Float?
+  gapAmount   Float?
+  severity    String
+  evidence    String
+  confidence  Float
+  status      String   @default("open")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([discoveryId, category])
+  @@index([status])
+}
+
+model FinancialProtectionScenario {
+  id          String   @id @default(cuid())
+  discoveryId String
+  discovery   FinancialDiscovery @relation(fields: [discoveryId], references: [id], onDelete: Cascade)
+  name        String
+  assumptions Json
+  result      Json
+  createdAt   DateTime @default(now())
+
+  @@index([discoveryId, createdAt])
+}
+
+model FinancialAction {
+  id          String   @id @default(cuid())
+  discoveryId String
+  discovery   FinancialDiscovery @relation(fields: [discoveryId], references: [id], onDelete: Cascade)
+  objective   String
+  gap         String
+  alternatives Json
+  assumptions Json
+  expectedImpact String
+  priority    Int
+  decision    String?
+  status      String   @default("proposed")
+  reviewAt    DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([discoveryId, status])
+  @@index([priority])
+}
+
+model DataConsent {
+  id             String   @id @default(cuid())
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  grantorUserId  String
+  grantor        User     @relation("ConsentGrantor", fields: [grantorUserId], references: [id], onDelete: Cascade)
+  granteeUserId  String?
+  grantee        User?    @relation("ConsentGrantee", fields: [granteeUserId], references: [id], onDelete: Cascade)
+  domain         String
+  scopes         String[]
+  purpose        String
+  status         String   @default("active")
+  expiresAt      DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime @default(now())
+
+  @@index([grantorUserId, domain, status])
+  @@index([organizationId, domain, status])
+}
+
 model WorkAssignment {
   id          String   @id @default(cuid())
   ventureId   String
@@ -1027,6 +1202,8 @@ model Organization {
   contact           String?
   users             OrganizationUser[]
   cohorts           Cohort[]
+  portfolioRiskSnapshots PortfolioRiskSnapshot[]
+  dataConsents      DataConsent[]
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
