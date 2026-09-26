@@ -1,0 +1,4 @@
+import {detectUnivariateAnomalies} from "./univariate";import {detectTemporalAnomalies} from "./temporal";import {detectMultivariateAnomalies} from "./multivariate";
+export const ANOMALY_ENGINE_VERSION="ANOMALY_ENGINE_V1";
+export type AnomalyRequest={mode:"univariate"|"temporal"|"multivariate";values?:number[];rows?:number[][];options?:Record<string,number>};
+export function analyzeAnomalies(req:AnomalyRequest){if(req.mode==="univariate")return{version:ANOMALY_ENGINE_VERSION,mode:req.mode,...detectUnivariateAnomalies(req.values??[],req.options)};if(req.mode==="temporal")return{version:ANOMALY_ENGINE_VERSION,mode:req.mode,...detectTemporalAnomalies(req.values??[],req.options)};return{version:ANOMALY_ENGINE_VERSION,mode:req.mode,...detectMultivariateAnomalies(req.rows??[],req.options?.threshold)}}
