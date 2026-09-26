@@ -1,0 +1,4 @@
+export function quantile(xs:number[],q:number){const a=xs.filter(Number.isFinite).sort((x,y)=>x-y);if(!a.length)return null;const pos=(a.length-1)*Math.max(0,Math.min(1,q)),lo=Math.floor(pos),hi=Math.ceil(pos);if(lo===hi)return a[lo];const w=pos-lo;return a[lo]*(1-w)+a[hi]*w}
+export function iqrBounds(xs:number[],k=1.5){const q1=quantile(xs,.25),q3=quantile(xs,.75);if(q1==null||q3==null)return null;const iqr=q3-q1;return{q1,q3,iqr,lower:q1-k*iqr,upper:q3+k*iqr}}
+export function zScores(xs:number[]){const clean=xs.filter(Number.isFinite);if(!clean.length)return[];const m=clean.reduce((a,b)=>a+b,0)/clean.length;const s=Math.sqrt(clean.reduce((a,b)=>a+(b-m)**2,0)/clean.length);return clean.map(value=>({value,z:s===0?0:(value-m)/s}))}
+export function percentileRank(xs:number[],x:number){const a=xs.filter(Number.isFinite);if(!a.length)return null;return a.filter(v=>v<=x).length/a.length*100}
