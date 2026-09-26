@@ -1,0 +1,2 @@
+import {NextRequest,NextResponse} from "next/server";import {requireAuth} from "@/lib/api-auth";import {analyzeAnomalies} from "@/lib/intelligence/anomaly/anomaly-engine";
+export async function POST(req:NextRequest){const a=await requireAuth(req);if(!a.ok)return a.response;const b=await req.json().catch(()=>({}));if(!["univariate","temporal","multivariate"].includes(b.mode))return NextResponse.json({error:"mode must be univariate, temporal, or multivariate"},{status:400});return NextResponse.json(analyzeAnomalies(b));}
