@@ -19,6 +19,10 @@ export type DomainEventMap = {
   capital_deployment_created: { deploymentId: string; ventureId: string; ownerId: string; plannedAmount: number };
   capital_deployment_updated: { deploymentId: string; ventureId: string; ownerId: string; status: string; spentAmount: number };
   capital_deployment_learning: { deploymentId: string; ventureId: string; ownerId: string; roi: number | null };
+  risk_assessment_created: { assessmentId: string; ventureId: string; ownerId: string; resilienceIndex: number };
+  financial_discovery_analyzed: { discoveryId: string; ownerId: string; ventureId: string | null; protectionGap: number };
+  financial_scenario_simulated: { scenarioId: string; discoveryId: string; ownerId: string };
+  data_consent_recorded: { consentId: string; ownerId: string; domain: string; status: string };
   decision_created: { decisionId: string; ownerId: string };
   decision_outcome_recorded: { decisionId: string; ownerId: string };
   decision_learning_consolidated: { decisionId: string; ownerId: string; outcomeStatus: string };
