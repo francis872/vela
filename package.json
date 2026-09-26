@@ -23,7 +23,8 @@
     "db:push": "prisma db push --skip-generate && prisma generate",
     "db:reset-dev": "prisma db push --force-reset --skip-generate && prisma generate",
     "db:studio": "prisma studio",
-    "users:seed": "node scripts/seed-users.mjs"
+    "users:seed": "node scripts/seed-users.mjs",
+    "test:fundraising": "tsc --target ES2022 --module commonjs --moduleResolution node --outDir .fundraising-tests --esModuleInterop --skipLibCheck tests/fundraising-intelligence.test.ts src/lib/fundraising-intelligence.ts src/lib/valuation-engine.ts && node --test .fundraising-tests/tests/fundraising-intelligence.test.js"
   },
   "dependencies": {
     "@prisma/client": "^6.16.2",
