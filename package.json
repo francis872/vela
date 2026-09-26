@@ -26,7 +26,8 @@
     "users:seed": "node scripts/seed-users.mjs",
     "test:fundraising": "tsc --target ES2022 --module commonjs --moduleResolution node --outDir .fundraising-tests --esModuleInterop --skipLibCheck tests/fundraising-intelligence.test.ts src/lib/fundraising-intelligence.ts src/lib/valuation-engine.ts && node --test .fundraising-tests/tests/fundraising-intelligence.test.js",
     "test:risk-financial": "tsc --target ES2022 --module commonjs --moduleResolution node --outDir .risk-financial-tests --esModuleInterop --skipLibCheck tests/risk-financial-intelligence.test.ts src/lib/risk-resilience-engine.ts src/lib/financial-protection-engine.ts src/lib/valuation-engine.ts && node --test .risk-financial-tests/tests/risk-financial-intelligence.test.js",
-    "test:state": "tsc --target ES2022 --module commonjs --moduleResolution node --outDir .state-tests --esModuleInterop --skipLibCheck tests/state-engine.test.ts src/lib/intelligence/state/state.ts && node --test .state-tests/tests/state-engine.test.js"
+    "test:state": "tsc --target ES2022 --module commonjs --moduleResolution node --outDir .state-tests --esModuleInterop --skipLibCheck tests/state-engine.test.ts src/lib/intelligence/state/state.ts && node --test .state-tests/tests/state-engine.test.js",
+    "test:features": "tsc --target ES2022 --module commonjs --moduleResolution node --outDir .feature-tests --esModuleInterop --skipLibCheck tests/feature-engine.test.ts src/lib/intelligence/features/feature.ts src/lib/intelligence/features/financial.ts src/lib/intelligence/features/execution.ts src/lib/intelligence/features/spatial.ts src/lib/intelligence/state/venture-state.ts && node --test .feature-tests/tests/feature-engine.test.js"
   },
   "dependencies": {
     "@prisma/client": "^6.16.2",
