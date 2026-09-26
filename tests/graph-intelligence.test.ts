@@ -1,0 +1,18 @@
+import assert from "node:assert/strict";
+import {analyzeDependencies,type KnowledgeNode,type KnowledgeEdge} from "../src/lib/intelligence/graph/dependency";
+import {propagateImpact} from "../src/lib/intelligence/graph/propagation";
+const nodes:KnowledgeNode[]=[{id:"founder",type:"person",label:"Founder"},{id:"process",type:"process",label:"Sales"},{id:"objective",type:"objective",label:"Growth"},{id:"revenue",type:"financial",label:"Revenue"},{id:"cash",type:"financial",label:"Cash"}];
+const edges:KnowledgeEdge[]=[{from:"founder",to:"process",relation:"OPERATES"},{from:"process",to:"objective",relation:"ENABLES"},{from:"objective",to:"revenue",relation:"CONTRIBUTES_TO"},{from:"revenue",to:"cash",relation:"CONTRIBUTES_TO"}];
+const d=analyzeDependencies(nodes,edges);
+assert.equal(d.hasCycle,false);
+assert.deepEqual(d.roots,["founder"]);
+assert.deepEqual(d.leaves,["cash"]);
+assert.deepEqual(d.criticalPath,["founder","process","objective","revenue","cash"]);
+const p=propagateImpact(nodes,edges,[{nodeId:"founder",value:.8}],{attenuation:.5});
+assert.ok(p.nodeImpact.cash>0);
+const cash=p.contributions.find(x=>x.targetId==="cash");
+assert.deepEqual(cash?.path,["founder","process","objective","revenue","cash"]);
+assert.equal(cash?.depth,4);
+const cyc=analyzeDependencies(nodes,[...edges,{from:"cash",to:"founder",relation:"FEEDBACK"}]);
+assert.equal(cyc.hasCycle,true);
+console.log("Graph Intelligence tests passed");
