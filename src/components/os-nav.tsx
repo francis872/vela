@@ -48,7 +48,17 @@ const NAV_ITEMS = [
         <circle cx="13" cy="3" r="1.5" fill="currentColor" opacity=".85"/>
       </svg>
     ),
+  },  {
+    href: "/risk",
+    label: "Risk",
+    icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1.5 14 4v4c0 3.5-2.3 5.7-6 6.5C4.3 13.7 2 11.5 2 8V4l6-2.5Z" stroke="currentColor" strokeWidth="1.3"/><path d="M8 5v4M8 11.5v.1" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>,
   },
+  {
+    href: "/financial-protection",
+    label: "Protection",
+    icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.3"/><path d="M5 9.5 7 11l4-6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+  },
+
   {
     href: "/relay",
     label: "Relay",
@@ -151,7 +161,7 @@ export default function OsNav({ userName, userRole }: OsNavProps) {
   }
 
   const navGroups = [
-    { label: "Operate", items: NAV_ITEMS.filter((item) => ["/build", "/validate", "/capital"].includes(item.href)) },
+    { label: "Operate", items: NAV_ITEMS.filter((item) => ["/build", "/validate", "/capital", "/risk", "/financial-protection"].includes(item.href)) },
     { label: "Connect", items: NAV_ITEMS.filter((item) => ["/network", "/relay"].includes(item.href)) },
     { label: "Workspace", items: [
       { href: "/venture", label: "Venture", icon: NAV_ITEMS.find((item) => item.href === "/space")?.icon },
