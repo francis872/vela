@@ -1,0 +1,6 @@
+import assert from "node:assert/strict";import {buildPortfolioMatrix,standardizeMatrix} from "../src/lib/intelligence/portfolio/matrix";import {segmentPortfolio} from "../src/lib/intelligence/portfolio/segmentation";import {analyzePortfolio} from "../src/lib/intelligence/portfolio/portfolio-intelligence";
+const ventures=[{id:"a",features:{velocity:80,risk:20}},{id:"b",features:{velocity:78,risk:22}},{id:"c",features:{velocity:20,risk:90}},{id:"missing",features:{velocity:null,risk:40}}];
+const m=buildPortfolioMatrix(ventures,undefined,.7);assert.deepEqual(m.featureKeys,["risk","velocity"]);assert.deepEqual(m.ventureIds,["a","b","c"]);assert.ok(m.excluded.includes("missing"));
+const z=standardizeMatrix(m.rows);assert.equal(z.rows.length,3);const s=segmentPortfolio(z.rows,2);assert.equal(s.status,"AVAILABLE");
+const p=analyzePortfolio(ventures,{clusters:2,interventionCapacity:1,risk:{a:20,b:22,c:90}});assert.equal(p.status,"AVAILABLE");if(p.status==="AVAILABLE"){assert.equal(p.summary.eligible,3);assert.equal(p.clusters.length,2);assert.equal(p.interventionAllocation?.selected.length,1);assert.equal(p.interventionAllocation?.selected[0],"c")}
+const small=analyzePortfolio([{id:"x",features:{a:1}}]);assert.equal(small.status,"INSUFFICIENT_DATA");console.log("Portfolio Intelligence tests passed");
