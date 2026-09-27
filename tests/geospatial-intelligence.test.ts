@@ -1,0 +1,6 @@
+import assert from "node:assert/strict";import {haversineKm} from "../src/lib/intelligence/geospatial/features";import {radialDensity} from "../src/lib/intelligence/geospatial/density";import {gravityAccessibility,proximityScore} from "../src/lib/intelligence/geospatial/accessibility";import {analyzeGeospatial} from "../src/lib/intelligence/geospatial/geospatial-intelligence";
+const o={lat:6.2442,lon:-75.5812},near={lat:6.245,lon:-75.5812},far={lat:6.4,lon:-75.58};assert.ok(haversineKm(o,near)<1);assert.ok(haversineKm(o,far)>10);
+const d=radialDensity(o,[near,far],2);assert.equal(d?.count,1);assert.ok((d?.density??0)>0);
+const p=proximityScore(o,[near],10);assert.ok((p?.score??0)>90);const g=gravityAccessibility(o,[{...near,weight:2}],5);assert.ok((g?.score??0)>1);
+const result=analyzeGeospatial({origin:o,customers:[near],talent:[near],competitors:[far],suppliers:[near],infrastructure:[near]},{radiusKm:2});assert.equal(result.status,"AVAILABLE");assert.ok((result.features.customerDensity??0)>0);assert.ok((result.features.supplierProximity??0)>90);
+const empty=analyzeGeospatial({origin:o});assert.equal(empty.status,"INSUFFICIENT_DATA");console.log("Geospatial Intelligence tests passed");
