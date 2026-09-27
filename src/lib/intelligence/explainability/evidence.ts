@@ -1,0 +1,5 @@
+export type EvidenceKind="observed"|"derived"|"assumption"|"external";
+export type EvidenceItem={id:string;label:string;kind:EvidenceKind;source:string;path?:string;observedAt?:string|null;reliability?:number;value?:unknown;notes?:string};
+export function evidenceCoverage(items:EvidenceItem[],requiredIds:string[]){if(!requiredIds.length)return 100;const available=new Set(items.map(x=>x.id));return Math.round(requiredIds.filter(id=>available.has(id)).length/requiredIds.length*10000)/100}
+export function evidenceFreshness(item:EvidenceItem,now=new Date()){if(!item.observedAt)return 50;const t=new Date(item.observedAt).getTime();if(!Number.isFinite(t))return 25;const days=Math.max(0,(now.getTime()-t)/86400000);if(days<=7)return 100;if(days<=30)return 90;if(days<=90)return 75;if(days<=180)return 60;if(days<=365)return 45;return 25}
+export function sourceReliability(item:EvidenceItem){if(item.reliability!=null)return Math.max(0,Math.min(100,item.reliability));return item.kind==="observed"?90:item.kind==="derived"?80:item.kind==="external"?75:55}
