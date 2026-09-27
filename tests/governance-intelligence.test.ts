@@ -1,0 +1,6 @@
+import assert from "node:assert/strict";import {evaluateExperimentEvidence} from "../src/lib/intelligence/governance/experiments";import {detectDrift,detectPerformanceDegradation} from "../src/lib/intelligence/governance/drift";
+assert.equal(evaluateExperimentEvidence({championScore:.5,challengerScore:.8,championSamples:3,challengerSamples:3,minimumSamples:8,promotionDelta:.08}).status,"COLLECTING_EVIDENCE");
+const promote=evaluateExperimentEvidence({championScore:.5,challengerScore:.61,championSamples:10,challengerSamples:10,minimumSamples:8,promotionDelta:.08});assert.equal(promote.status,"PROMOTE");
+const stable=detectDrift({baseline:[10,11,9,10,10],recent:[10,11,10,9,10]});assert.equal(stable.status,"AVAILABLE");if(stable.status==="AVAILABLE")assert.equal(stable.drift,false);
+const drift=detectDrift({baseline:[10,11,9,10,10],recent:[20,21,19,20,20]});assert.equal(drift.status,"AVAILABLE");if(drift.status==="AVAILABLE")assert.equal(drift.drift,true);
+assert.equal(detectPerformanceDegradation({baselineScore:.8,recentScore:.6,rollbackDelta:.12}).degraded,true);console.log("Governance Intelligence tests passed");
