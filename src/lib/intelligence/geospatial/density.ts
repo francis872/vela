@@ -1,0 +1,4 @@
+import {haversineKm,validatePoint,type GeoPoint} from "./features";
+export function radialDensity(origin:GeoPoint,points:GeoPoint[],radiusKm=5){if(radiusKm<=0)return null;const valid=points.filter(validatePoint),inside=valid.filter(p=>haversineKm(origin,p)<=radiusKm);if(!valid.length)return null;const weightedCount=inside.reduce((s,p)=>s+(p.weight??1),0),areaKm2=Math.PI*radiusKm*radiusKm;return{count:inside.length,weightedCount,areaKm2,density:weightedCount/areaKm2,coverage:inside.length/valid.length}}
+export function concentricDensity(origin:GeoPoint,points:GeoPoint[],radii=[1,3,5,10]){return [...radii].filter(r=>r>0).sort((a,b)=>a-b).map(radiusKm=>({radiusKm,result:radialDensity(origin,points,radiusKm)}))}
+export function competitionPressure(origin:GeoPoint,competitors:GeoPoint[],radiusKm=5){const d=radialDensity(origin,competitors,radiusKm);return d?Math.min(100,d.density*25):null}
