@@ -1,0 +1,6 @@
+import {prisma} from "@/lib/prisma";
+export const GOVERNANCE_VERSION="GOVERNANCE_ENGINE_V1";
+export type RegistryRole="champion"|"challenger"|"previous";
+export async function registerAlgorithm(input:{ownerId:string;family:string;version:string;role?:RegistryRole;parameters:Record<string,unknown>;metrics?:Record<string,unknown>;activate?:boolean}){return prisma.algorithmRegistry.upsert({where:{ownerId_family_version:{ownerId:input.ownerId,family:input.family,version:input.version}},create:{ownerId:input.ownerId,family:input.family,version:input.version,role:input.role??"challenger",status:"active",parameters:input.parameters,metrics:input.metrics,activatedAt:input.activate?new Date():null},update:{role:input.role??"challenger",status:"active",parameters:input.parameters,metrics:input.metrics,activatedAt:input.activate?new Date():undefined,retiredAt:null}})}
+export async function activeRegistry(ownerId:string,family:string){return prisma.algorithmRegistry.findMany({where:{ownerId,family,status:"active"},orderBy:[{role:"asc"},{updatedAt:"desc"}]})}
+export async function activeChampion(ownerId:string,family:string){return prisma.algorithmRegistry.findFirst({where:{ownerId,family,status:"active",role:"champion"},orderBy:{activatedAt:"desc"}})}
