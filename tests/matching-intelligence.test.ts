@@ -1,0 +1,14 @@
+import assert from "node:assert/strict";
+import {overlapScore,rangeFit,weightedMatch} from "../src/lib/intelligence/matching/matching";
+import {matchInvestor} from "../src/lib/intelligence/matching/investor";
+import {matchTalent} from "../src/lib/intelligence/matching/talent";
+import {matchCustomer} from "../src/lib/intelligence/matching/customer";
+import {matchPartner} from "../src/lib/intelligence/matching/partner";
+assert.equal(overlapScore(["ai","saas"],["saas","fintech"]),1/3*100);
+assert.equal(rangeFit(100,50,150),100);
+const wm=weightedMatch([{name:"x",score:100,weight:1,evidence:"ok",available:true}]);assert.equal(wm.status,"AVAILABLE");if(wm.status==="AVAILABLE")assert.equal(wm.score,100);
+const inv=matchInvestor({sector:"fintech",stage:"growth",capitalNeed:100},{id:"i",name:"Fund",sectors:["fintech"],stages:["growth"],minTicket:50,maxTicket:150});assert.equal(inv.status,"AVAILABLE");if(inv.status==="AVAILABLE")assert.ok((inv.score??0)>80);
+const tal=matchTalent({skills:["ts","react"],roles:["frontend"]},{id:"t",name:"A",skills:["ts","react"],roles:["frontend"]});assert.equal(tal.status,"AVAILABLE");
+const cus=matchCustomer({industries:["retail"],needs:["analytics"]},{id:"c",name:"C",industry:"retail",needs:["analytics"]});assert.equal(cus.status,"AVAILABLE");
+const par=matchPartner({capabilities:["distribution"],goals:["growth"]},{id:"p",name:"P",capabilities:["distribution"],goals:["growth"]});assert.equal(par.status,"AVAILABLE");
+console.log("Matching Intelligence tests passed");
