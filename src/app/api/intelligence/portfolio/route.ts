@@ -1,0 +1,2 @@
+import {NextRequest,NextResponse} from "next/server";import {requireAuth} from "@/lib/api-auth";import {analyzePortfolio} from "@/lib/intelligence/portfolio/portfolio-intelligence";
+export async function POST(req:NextRequest){const auth=await requireAuth(req);if(!auth.ok)return auth.response;const b=await req.json().catch(()=>({}));if(!Array.isArray(b.ventures))return NextResponse.json({error:"ventures array is required"},{status:400});return NextResponse.json(analyzePortfolio(b.ventures,b.options??{}));}
