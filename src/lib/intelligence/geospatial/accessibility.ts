@@ -1,0 +1,4 @@
+import {haversineKm,validatePoint,type GeoPoint} from "./features";
+export function gravityAccessibility(origin:GeoPoint,points:GeoPoint[],decayKm=5,maxDistanceKm=Infinity){const valid=points.filter(validatePoint),decay=Math.max(.1,decayKm);if(!valid.length)return null;let score=0,usable=0;for(const p of valid){const d=haversineKm(origin,p);if(d>maxDistanceKm)continue;usable++;score+=(p.weight??1)*Math.exp(-d/decay)}return usable?{score,usable}:null}
+export function proximityScore(origin:GeoPoint,points:GeoPoint[],scaleKm=10){const valid=points.filter(validatePoint);if(!valid.length)return null;const nearestKm=Math.min(...valid.map(p=>haversineKm(origin,p)));return{nearestKm,score:Math.max(0,100*(1-nearestKm/Math.max(.1,scaleKm)))}}
+export function coverageRatio(origin:GeoPoint,points:GeoPoint[],radiusKm=10){const valid=points.filter(validatePoint);if(!valid.length)return null;return valid.filter(p=>haversineKm(origin,p)<=radiusKm).length/valid.length*100}
