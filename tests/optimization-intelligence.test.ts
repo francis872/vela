@@ -1,0 +1,6 @@
+import assert from "node:assert/strict";import {optimizeContinuous} from "../src/lib/intelligence/optimization/ssa";import {optimizeDiscrete} from "../src/lib/intelligence/optimization/aco";import {optimizeAllocation} from "../src/lib/intelligence/optimization/allocation";
+const s=optimizeContinuous([{name:"x",min:0,max:10}],v=>({score:-(v.x-7)**2,feasible:true}),{iterations:20,population:20,seed:872});assert.ok(s.best);assert.ok(Math.abs((s.best?.values.x??0)-7)<2);
+const a=optimizeDiscrete([{id:"a",utility:100,cost:5},{id:"b",utility:40,cost:5},{id:"c",utility:90,cost:6}],10,{seed:872});assert.equal(a.feasible,true);assert.ok(a.cost<=10);assert.ok(a.selected.includes("a"));
+const constrained=optimizeDiscrete([{id:"child",utility:100,cost:2,dependencies:["parent"]},{id:"parent",utility:10,cost:2}],4,{seed:872});if(constrained.selected.includes("child"))assert.ok(constrained.selected.includes("parent"));
+const alloc=optimizeAllocation({mode:"continuous",variables:[{name:"capital",min:0,max:100}],constraints:{capital:{max:60}},weights:{capital:1},seed:872});assert.equal(alloc.mode,"continuous");assert.equal(alloc.result.best?.feasible,true);assert.ok((alloc.result.best?.values.capital??100)<=60);
+console.log("Optimization Intelligence tests passed");
