@@ -1,0 +1,6 @@
+import assert from "node:assert/strict";import {computeLearningReward,interventionLesson} from "../src/lib/intelligence/learning/outcome-learning";import {rankContextMemories} from "../src/lib/intelligence/learning/memory";
+const positive=computeLearningReward({baseline:40,outcome:60,targetDelta:20,direction:"increase",confidence:100});assert.equal(positive.reward,1);assert.equal(positive.outcome,"POSITIVE");
+const decrease=computeLearningReward({baseline:80,outcome:60,targetDelta:-20,direction:"decrease",confidence:100});assert.equal(decrease.reward,1);
+const missing=computeLearningReward({baseline:null,outcome:60});assert.equal(missing.outcome,"INSUFFICIENT_DATA");
+assert.ok(interventionLesson({title:"Test",action:"Interview customers",metric:"validation",reward:positive}).includes("associated"));
+const ranked=rankContextMemories({velocity:80,risk:20},[{id:"good",vector:{velocity:78,risk:22},effectiveness:.8},{id:"bad",vector:{velocity:10,risk:90},effectiveness:.9}]);assert.equal(ranked[0].id,"good");console.log("Learning Intelligence tests passed");
