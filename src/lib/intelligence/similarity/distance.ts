@@ -1,0 +1,9 @@
+export type Vector=Record<string,number|null|undefined>;
+export type DistanceMetric="euclidean"|"manhattan"|"cosine";
+export function alignVectors(a:Vector,b:Vector,keys?:string[]){const all=keys??[...new Set([...Object.keys(a),...Object.keys(b)])].sort(),used:string[]=[],av:number[]=[],bv:number[]=[],missingA:string[]=[],missingB:string[]=[];for(const k of all){const x=a[k],y=b[k],okA=typeof x==="number"&&Number.isFinite(x),okB=typeof y==="number"&&Number.isFinite(y);if(!okA)missingA.push(k);if(!okB)missingB.push(k);if(okA&&okB){used.push(k);av.push(x as number);bv.push(y as number)}}return{keys:used,a:av,b:bv,missingA,missingB,coverage:all.length?used.length/all.length:1}}
+export function normalizePair(a:number[],b:number[]){const aa:number[]=[],bb:number[]=[];for(let i=0;i<a.length;i++){const scale=Math.max(Math.abs(a[i]),Math.abs(b[i]),1);aa.push(a[i]/scale);bb.push(b[i]/scale)}return{a:aa,b:bb}}
+export function euclidean(a:number[],b:number[]){return Math.sqrt(a.reduce((s,x,i)=>s+(x-b[i])**2,0))}
+export function manhattan(a:number[],b:number[]){return a.reduce((s,x,i)=>s+Math.abs(x-b[i]),0)}
+export function cosineDistance(a:number[],b:number[]){const dot=a.reduce((s,x,i)=>s+x*b[i],0),na=Math.sqrt(a.reduce((s,x)=>s+x*x,0)),nb=Math.sqrt(b.reduce((s,x)=>s+x*x,0));if(na===0&&nb===0)return 0;if(na===0||nb===0)return 1;return Math.max(0,Math.min(2,1-dot/(na*nb)))}
+export function distance(a:number[],b:number[],metric:DistanceMetric="euclidean"){if(a.length!==b.length)throw new Error("Vector dimensions must match");return metric==="manhattan"?manhattan(a,b):metric==="cosine"?cosineDistance(a,b):euclidean(a,b)}
+export function featureContributions(keys:string[],a:number[],b:number[]){const raw=keys.map((feature,i)=>({feature,difference:Math.abs(a[i]-b[i])})),total=raw.reduce((s,x)=>s+x.difference,0);return raw.map(x=>({...x,share:total?x.difference/total:0})).sort((x,y)=>y.share-x.share)}
