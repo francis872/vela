@@ -1,0 +1,14 @@
+import assert from "node:assert/strict";
+import {computeConfidence} from "../src/lib/intelligence/explainability/confidence";
+import {analyzeProbability} from "../src/lib/intelligence/probability/probability-engine";
+import {analyzeAnomalies} from "../src/lib/intelligence/anomaly/anomaly-engine";
+import {compareSimilarity} from "../src/lib/intelligence/similarity/rbf";
+import {analyzePortfolio} from "../src/lib/intelligence/portfolio/portfolio-intelligence";
+import {detectDrift} from "../src/lib/intelligence/governance/drift";
+const p=analyzeProbability([1,2,2,3,4,5],3);assert.equal(p.status,"AVAILABLE");
+const a=analyzeAnomalies({mode:"univariate",values:[10,10,11,9,10,50]});assert.ok(a);
+const s=compareSimilarity({x:1,y:2},{x:1.1,y:2.1});assert.equal(s.status,"AVAILABLE");
+const portfolio=analyzePortfolio([{id:"a",features:{x:1,y:2}},{id:"b",features:{x:1.1,y:2.1}},{id:"c",features:{x:8,y:9}}],{clusters:2});assert.equal(portfolio.status,"AVAILABLE");
+const confidence=computeConfidence({evidence:[{id:"state",label:"state",kind:"observed",source:"test",reliability:100}],requiredEvidence:["state"],stateConfidence:100,consistency:100,modelFitness:100});assert.ok(confidence.score>70);
+const drift=detectDrift({baseline:[1,1.1,.9,1],recent:[3,3.1,2.9,3]});assert.equal(drift.status,"AVAILABLE");
+console.log("Computational Intelligence integration tests passed");
