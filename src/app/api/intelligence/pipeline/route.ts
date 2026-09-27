@@ -1,0 +1,2 @@
+import {NextRequest,NextResponse} from "next/server";import {requireAuth} from "@/lib/api-auth";import {runComputationalPipeline} from "@/lib/intelligence/pipeline";
+export async function POST(req:NextRequest){const auth=await requireAuth(req);if(!auth.ok)return auth.response;const b=await req.json().catch(()=>({}));if(!["venture","person","portfolio"].includes(b.scope))return NextResponse.json({error:"scope must be venture, person or portfolio"},{status:400});return NextResponse.json(await runComputationalPipeline(auth.session.sub,b));}
