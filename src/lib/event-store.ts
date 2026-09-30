@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import {bestEffortMongo,mirrorDomainEvent} from "@/lib/intelligence/intelligence-store";
 
 export type StoredDomainEventInput = {
   ownerId: string;
@@ -10,7 +11,7 @@ export type StoredDomainEventInput = {
 };
 
 export async function appendDomainEvent(input: StoredDomainEventInput) {
-  return prisma.domainEventRecord.create({
+  const record=await prisma.domainEventRecord.create({
     data: {
       ownerId: input.ownerId,
       name: input.name,
@@ -20,6 +21,12 @@ export async function appendDomainEvent(input: StoredDomainEventInput) {
       occurredAt: input.occurredAt ? new Date(input.occurredAt) : new Date(),
     },
   });
+  void bestEffortMongo(()=>mirrorDomainEvent({
+    postgresEventId:record.id,ownerId:record.ownerId,name:record.name,
+    aggregate:record.aggregate,aggregateId:record.aggregateId,
+    payload:input.payload??{},occurredAt:record.occurredAt
+  }));
+  return record;
 }
 
 export async function readDomainEvents(ownerId: string, options?: { after?: Date; limit?: number }) {
@@ -32,22 +39,12 @@ export async function readDomainEvents(ownerId: string, options?: { after?: Date
     orderBy: { occurredAt: "asc" },
     take: limit,
   });
-
   return records.map((record) => ({
-    id: record.id,
-    ownerId: record.ownerId,
-    name: record.name,
-    aggregate: record.aggregate,
-    aggregateId: record.aggregateId,
-    occurredAt: record.occurredAt.toISOString(),
-    payload: safePayload(record.payload),
+    id: record.id,ownerId:record.ownerId,name:record.name,aggregate:record.aggregate,
+    aggregateId:record.aggregateId,occurredAt:record.occurredAt.toISOString(),payload:safePayload(record.payload),
   }));
 }
 
 function safePayload(value: string): unknown {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return {};
-  }
+  try { return JSON.parse(value); } catch { return {}; }
 }
