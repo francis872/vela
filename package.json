@@ -1,6 +1,6 @@
 {
   "name": "vela-app",
-  "version": "0.1.0",
+  "version": "2.14.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -43,7 +43,8 @@
     "test:intelligence-pipeline": "tsc --target ES2022 --module commonjs --moduleResolution node --outDir .intelligence-pipeline-tests --esModuleInterop --skipLibCheck tests/computational-intelligence-pipeline.test.ts src/lib/intelligence/probability/distributions.ts src/lib/intelligence/probability/goodness-of-fit.ts src/lib/intelligence/probability/outliers.ts src/lib/intelligence/probability/probability-engine.ts src/lib/intelligence/anomaly/univariate.ts src/lib/intelligence/anomaly/multivariate.ts src/lib/intelligence/anomaly/temporal.ts src/lib/intelligence/anomaly/anomaly-engine.ts src/lib/intelligence/similarity/distance.ts src/lib/intelligence/similarity/rbf.ts src/lib/intelligence/portfolio/matrix.ts src/lib/intelligence/portfolio/segmentation.ts src/lib/intelligence/portfolio/portfolio-intelligence.ts src/lib/intelligence/optimization/aco.ts src/lib/intelligence/explainability/evidence.ts src/lib/intelligence/explainability/confidence.ts src/lib/intelligence/governance/drift.ts && node --test .intelligence-pipeline-tests/tests/computational-intelligence-pipeline.test.js",
     "test:investment-intelligence": "tsc --target ES2022 --module commonjs --moduleResolution node --outDir .investment-tests --esModuleInterop --skipLibCheck tests/investment-intelligence.test.ts src/lib/investments/investment-intelligence.ts src/lib/intelligence/explainability/evidence.ts src/lib/intelligence/explainability/confidence.ts src/lib/intelligence/explainability/explanation.ts src/lib/intelligence/portfolio/matrix.ts src/lib/intelligence/portfolio/segmentation.ts src/lib/intelligence/portfolio/portfolio-intelligence.ts src/lib/intelligence/anomaly/multivariate.ts src/lib/intelligence/optimization/aco.ts && node --test .investment-tests/tests/investment-intelligence.test.js",
     "test:gwo": "tsc --target ES2022 --module commonjs --moduleResolution node --outDir .gwo-tests --esModuleInterop --skipLibCheck tests/gwo-optimization.test.ts src/lib/intelligence/optimization/gwo.ts src/lib/intelligence/optimization/multi-objective.ts src/lib/intelligence/optimization/ssa.ts src/lib/intelligence/optimization/aco.ts src/lib/intelligence/optimization/allocation.ts && node --test .gwo-tests/tests/gwo-optimization.test.js",
-    "test:investment-gwo": "tsc --target ES2022 --module commonjs --moduleResolution node --outDir .investment-gwo-tests --esModuleInterop --skipLibCheck tests/investment-gwo-digital-twin.test.ts src/lib/investments/investment-strategy-optimizer.ts src/lib/investments/investment-digital-twin.ts src/lib/intelligence/optimization/gwo.ts src/lib/intelligence/optimization/multi-objective.ts src/lib/intelligence/digital-twin/venture-twin.ts src/lib/intelligence/digital-twin/scenario-engine.ts src/lib/intelligence/state/state.ts src/lib/intelligence/state/venture-state.ts && node --test .investment-gwo-tests/tests/investment-gwo-digital-twin.test.js"
+    "test:investment-gwo": "tsc --target ES2022 --module commonjs --moduleResolution node --outDir .investment-gwo-tests --esModuleInterop --skipLibCheck tests/investment-gwo-digital-twin.test.ts src/lib/investments/investment-strategy-optimizer.ts src/lib/investments/investment-digital-twin.ts src/lib/intelligence/optimization/gwo.ts src/lib/intelligence/optimization/multi-objective.ts src/lib/intelligence/digital-twin/venture-twin.ts src/lib/intelligence/digital-twin/scenario-engine.ts src/lib/intelligence/state/state.ts src/lib/intelligence/state/venture-state.ts && node --test .investment-gwo-tests/tests/investment-gwo-digital-twin.test.js",
+    "data:fabric:indexes": "node -e \"console.log('Initialize indexes with authenticated POST /api/system/data-fabric after deployment')\""
   },
   "dependencies": {
     "@prisma/client": "^6.16.2",
@@ -53,7 +54,8 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-router-dom": "^7.13.1",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "mongodb": "^6.20.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
