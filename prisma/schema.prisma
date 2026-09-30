@@ -1692,3 +1692,59 @@ model DomainEventRecord {
   @@index([name, occurredAt])
   @@index([aggregate, aggregateId])
 }
+
+
+// ─── VELA Investment Intelligence ────────────────────────────────────────────
+
+model InvestmentOpportunity {
+  id                String   @id @default(cuid())
+  ownerId           String
+  title             String
+  type              String
+  thesis            String
+  status            String   @default("screening")
+  sector            String?
+  geography         String?
+  capitalRequired   Float?
+  expectedReturn    Float?
+  timeHorizonMonths Int?
+  liquidity         Float?
+  strategicFit      Float?
+  marketPotential   Float?
+  executionComplexity Float?
+  riskExposure      Float?
+  evidence          String[] @default([])
+  assumptions       String[] @default([])
+  metadata          Json?
+  committeeDecision String?
+  decisionRationale String?
+  decidedAt         DateTime?
+  actualReturn      Float?
+  outcomeStatus     String?
+  monitoredAt       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([ownerId, status])
+  @@index([ownerId, type])
+  @@index([ownerId, createdAt])
+}
+
+model InvestmentReview {
+  id             String   @id @default(cuid())
+  ownerId        String
+  opportunityId  String
+  stage          String
+  status         String   @default("pending")
+  summary        String?
+  evidence       String[] @default([])
+  missing        String[] @default([])
+  assumptions    String[] @default([])
+  confidence     Float?
+  analysis       Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([ownerId, opportunityId])
+  @@index([ownerId, stage, status])
+}
