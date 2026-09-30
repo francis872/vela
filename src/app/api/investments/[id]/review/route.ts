@@ -1,0 +1,2 @@
+import {NextRequest,NextResponse} from "next/server";import {requireAuth} from "@/lib/api-auth";import {reviewOpportunity} from "@/lib/investments/investment-service";
+export async function POST(req:NextRequest,{params}:{params:Promise<{id:string}>}){const auth=await requireAuth(req);if(!auth.ok)return auth.response;const {id}=await params,b=await req.json().catch(()=>({}));const result=await reviewOpportunity(auth.session.sub,id,b.stage??"analysis");return result?NextResponse.json(result):NextResponse.json({error:"opportunity not found"},{status:404});}
