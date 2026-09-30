@@ -1,0 +1,4 @@
+import assert from "node:assert/strict";import {opportunityFeatures,analyzeOpportunity} from "../src/lib/investments/investment-intelligence";
+const business={id:"b1",title:"Regional expansion",type:"BUSINESS",status:"screening",capitalRequired:1200,expectedReturn:18,strategicFit:90,marketPotential:80,riskExposure:40,liquidity:50,executionComplexity:60,timeHorizonMonths:48,evidence:["market study"],assumptions:["revenue remains stable"]};const f=opportunityFeatures(business);assert.equal(f.strategicFit,90);const a=analyzeOpportunity(business);assert.equal(a.value.type,"BUSINESS");assert.ok(a.confidence>0);
+const property={...business,id:"r1",type:"REAL_ESTATE",title:"Commercial asset"};assert.equal(analyzeOpportunity(property).algorithm,a.algorithm);
+console.log("Investment Intelligence tests passed");
