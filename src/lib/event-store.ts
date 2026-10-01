@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import {bestEffortMongo,mirrorDomainEvent} from "@/lib/intelligence/intelligence-store";
+import {scheduleEventReplay} from "@/lib/intelligence/event-replay";
 
 export type StoredDomainEventInput = {
   ownerId: string;
@@ -24,8 +25,10 @@ export async function appendDomainEvent(input: StoredDomainEventInput) {
   void bestEffortMongo(()=>mirrorDomainEvent({
     postgresEventId:record.id,ownerId:record.ownerId,name:record.name,
     aggregate:record.aggregate,aggregateId:record.aggregateId,
-    payload:input.payload??{},occurredAt:record.occurredAt
-  }));
+    payload:input.payload??{},occurredAt:record.occurredAt,createdAt:record.createdAt
+  })).then(result=>{
+    if(result.status==="STORED")scheduleEventReplay();
+  });
   return record;
 }
 
