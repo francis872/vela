@@ -10,6 +10,7 @@ export const COLLECTIONS={
   learningMemory:"learning_memory",
   graphSnapshots:"graph_snapshots",
   eventDocuments:"event_documents",
+  replayState:"event_replay_state",
   encryptedModels:"encrypted_models"
 } as const;
 
@@ -27,7 +28,13 @@ export async function ensureIntelligenceIndexes(){
     db.collection(COLLECTIONS.digitalTwinRuns).createIndexes([{key:{ownerId:1,subjectId:1,createdAt:-1}},{key:{runId:1},unique:true}]),
     db.collection(COLLECTIONS.learningMemory).createIndexes([{key:{ownerId:1,problemSignature:1,learnedAt:-1}},{key:{interventionId:1},unique:true,sparse:true}]),
     db.collection(COLLECTIONS.graphSnapshots).createIndexes([{key:{ownerId:1,generatedAt:-1}},{key:{fingerprint:1}}]),
-    db.collection(COLLECTIONS.eventDocuments).createIndexes([{key:{ownerId:1,occurredAt:-1}},{key:{postgresEventId:1},unique:true}]),
+    db.collection(COLLECTIONS.eventDocuments).createIndexes([
+      {key:{ownerId:1,occurredAt:-1}},
+      {key:{postgresEventId:1},unique:true},
+      {key:{createdAt:1,postgresEventId:1}},
+      {key:{fingerprint:1}}
+    ]),
+    db.collection(COLLECTIONS.replayState).createIndexes([{key:{updatedAt:-1}}]),
     db.collection(COLLECTIONS.encryptedModels).createIndexes([{key:{ownerId:1,modelType:1,createdAt:-1}},{key:{fingerprint:1}}])
   ]);
   return{status:"READY" as const,database:db.databaseName};
@@ -58,6 +65,27 @@ export async function storeLearningMemory(input:{ownerId:string;interventionId:s
 export async function storeGraphSnapshot(input:{ownerId:string;graph:unknown;generatedAt?:string}){
   const fp=fingerprint(input.graph);return (await collection(COLLECTIONS.graphSnapshots)).updateOne({ownerId:input.ownerId,fingerprint:fp},{$set:{ownerId:input.ownerId,graph:input.graph,fingerprint:fp,generatedAt:new Date(input.generatedAt??Date.now()),version:INTELLIGENCE_STORE_VERSION}},{upsert:true});
 }
-export async function mirrorDomainEvent(input:{postgresEventId:string;ownerId:string;name:string;aggregate?:string|null;aggregateId?:string|null;payload:unknown;occurredAt:Date}){
-  return (await collection(COLLECTIONS.eventDocuments)).updateOne({postgresEventId:input.postgresEventId},{$set:{...input,version:INTELLIGENCE_STORE_VERSION}},{upsert:true});
+export async function mirrorDomainEvent(input:{postgresEventId:string;ownerId:string;name:string;aggregate?:string|null;aggregateId?:string|null;payload:unknown;occurredAt:Date;createdAt?:Date}){
+  const mirroredAt=new Date();
+  const eventFingerprint=fingerprint({
+    postgresEventId:input.postgresEventId,
+    ownerId:input.ownerId,
+    name:input.name,
+    aggregate:input.aggregate??null,
+    aggregateId:input.aggregateId??null,
+    payload:input.payload,
+    occurredAt:input.occurredAt.toISOString()
+  });
+  return (await collection(COLLECTIONS.eventDocuments)).updateOne(
+    {postgresEventId:input.postgresEventId},
+    {$set:{
+      ...input,
+      createdAt:input.createdAt??input.occurredAt,
+      mirroredAt,
+      fingerprint:eventFingerprint,
+      provenance:{source:"postgresql",canonical:true,postgresEventId:input.postgresEventId},
+      version:INTELLIGENCE_STORE_VERSION
+    }},
+    {upsert:true}
+  );
 }
