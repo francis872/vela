@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { computeScore } from "@/lib/scoring";
-import { requireRole } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
 import { requireProfileReady } from "@/lib/profile-gate";
 
 const evaluationSchema = z.object({
@@ -23,10 +23,10 @@ const evaluationSchema = z.object({
 });
 
 export async function GET(request: Request) {
-  const auth = await requireRole(request, ["admin", "analista", "operador"]);
+  const auth = await requireAuth(request, ["admin", "analista", "operador"]);
 
   if (!auth.ok) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    return auth.response;
   }
 
   const profileGate = await requireProfileReady(auth.session.sub);
@@ -48,10 +48,10 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireRole(request, ["admin", "analista", "operador"]);
+  const auth = await requireAuth(request, ["admin", "analista", "operador"]);
 
   if (!auth.ok) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    return auth.response;
   }
 
   const profileGate = await requireProfileReady(auth.session.sub);
