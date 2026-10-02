@@ -17,7 +17,6 @@ export type SessionPayload = {
 
 const secretValue = process.env.AUTH_SECRET;
 if (!secretValue && process.env.NODE_ENV === "production") {
-  // Fail fast: no fallback secret is acceptable in production.
   throw new Error("AUTH_SECRET must be configured in production");
 }
 const secret = new TextEncoder().encode(
@@ -37,38 +36,36 @@ export async function verifySession(token: string) {
   return verified.payload as unknown as SessionPayload;
 }
 
-type RequireRoleOk = {
-  ok: true;
-  session: SessionPayload;
-};
-
-type RequireRoleError = {
-  ok: false;
-  status: 401 | 403;
-  error: string;
-};
-
+/**
+ * @deprecated API route handlers must use requireAuth from @/lib/api-auth.
+ * This pure JWT helper is retained only for edge/middleware-compatible callers
+ * that cannot access Prisma. It does NOT validate persisted session revocation.
+ */
 export async function requireRole(
   request: Request,
   roles: SessionRole[],
-): Promise<RequireRoleOk | RequireRoleError> {
+): Promise<
+  | { ok: true; session: SessionPayload }
+  | { ok: false; status: 401 | 403; error: string }
+> {
   const cookieHeader = request.headers.get("cookie") || "";
-  const cookies = cookieHeader.split(";").map((item) => item.trim());
-  const entry = cookies.find((item) => item.startsWith(`${SESSION_COOKIE}=`));
+  const entry = cookieHeader
+    .split(";")
+    .map((item) => item.trim())
+    .find((item) => item.startsWith(`${SESSION_COOKIE}=`));
 
-  if (!entry) {
-    return { ok: false, status: 401, error: "No hay sesión activa" };
-  }
+  if (!entry) return { ok: false, status: 401, error: "No hay sesión activa" };
 
   const token = decodeURIComponent(entry.slice(`${SESSION_COOKIE}=`.length));
 
   try {
     const session = await verifySession(token);
-
+    if (session.mfaPending) {
+      return { ok: false, status: 401, error: "Se requiere verificación de segundo factor" };
+    }
     if (!roles.includes(session.role)) {
       return { ok: false, status: 403, error: "No autorizado para este recurso" };
     }
-
     return { ok: true, session };
   } catch {
     return { ok: false, status: 401, error: "Sesión inválida o expirada" };
