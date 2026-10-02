@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
 import { requireProfileReady } from "@/lib/profile-gate";
 
 function escapeCsv(value: string | number | null) {
@@ -17,10 +17,10 @@ function escapeCsv(value: string | number | null) {
 }
 
 export async function GET(request: Request) {
-  const auth = await requireRole(request, ["admin", "analista"]);
+  const auth = await requireAuth(request, ["admin", "analista"]);
 
   if (!auth.ok) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    return auth.response;
   }
 
   const profileGate = await requireProfileReady(auth.session.sub);
