@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireRole } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
 import { requireProfileReady } from "@/lib/profile-gate";
 import { prisma } from "@/lib/prisma";
 
@@ -11,10 +11,10 @@ const createExperimentSchema = z.object({
 });
 
 export async function GET(request: Request) {
-  const auth = await requireRole(request, ["admin", "analista", "operador"]);
+  const auth = await requireAuth(request, ["admin", "analista", "operador"]);
 
   if (!auth.ok) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    return auth.response;
   }
 
   const profileGate = await requireProfileReady(auth.session.sub);
@@ -42,10 +42,10 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireRole(request, ["admin", "analista", "operador"]);
+  const auth = await requireAuth(request, ["admin", "analista", "operador"]);
 
   if (!auth.ok) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    return auth.response;
   }
 
   const payload = await request.json().catch(() => null);

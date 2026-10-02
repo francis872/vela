@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
 import { writeAuditLog } from "@/lib/audit-service";
 import { getRequestMeta } from "@/lib/security";
 import {
@@ -111,10 +111,10 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const auth = await requireRole(request, ["admin"]);
+  const auth = await requireAuth(request, ["admin"]);
 
   if (!auth.ok) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    return auth.response;
   }
 
   if (!hasValidWaitlistAdminKey(request)) {
@@ -173,10 +173,10 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  const auth = await requireRole(request, ["admin"]);
+  const auth = await requireAuth(request, ["admin"]);
 
   if (!auth.ok) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    return auth.response;
   }
 
   if (!hasValidWaitlistAdminKey(request)) {

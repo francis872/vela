@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { PROFILE_READY_COOKIE, requireRole } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
 const profileSchema = z.object({
@@ -61,10 +61,10 @@ function profileCookie(response: NextResponse, ready: boolean) {
 }
 
 export async function GET(request: Request) {
-  const auth = await requireRole(request, ["admin", "analista", "operador"]);
+  const auth = await requireAuth(request, ["admin", "analista", "operador"]);
 
   if (!auth.ok) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    return auth.response;
   }
 
   const user = await prisma.user.findUnique({
@@ -81,10 +81,10 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const auth = await requireRole(request, ["admin", "analista", "operador"]);
+  const auth = await requireAuth(request, ["admin", "analista", "operador"]);
 
   if (!auth.ok) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    return auth.response;
   }
 
   const payload = await request.json().catch(() => null);

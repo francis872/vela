@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { requireRole } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
 import { ensureDefaultUsers, reseedDefaultUsers } from "@/lib/user-service";
 
 export async function POST(request: Request) {
-  const auth = await requireRole(request, ["admin"]);
+  const auth = await requireAuth(request, ["admin"]);
 
   if (!auth.ok) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    return auth.response;
   }
 
   try {

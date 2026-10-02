@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { SignalType, ValidationCoverageResponse } from "@/lib/functional-contracts";
 
 type Session = { name: string; email: string; role: string };
+type CapabilityAccess = { capabilities: string[]; membership: { role: string } | null };
 type Signal = {
   id: string;
   type: "experiment" | "interview" | "metric" | "insight";
@@ -41,6 +42,9 @@ const SIGNAL_TYPES = [
 
 export default function ValidatePage({ session }: { session: Session }) {
   const [signals, setSignals] = useState<Signal[]>([]);
+  const [access, setAccess] = useState<CapabilityAccess | null>(null);
+  const canWrite = access?.capabilities.includes("venture.validation.write") ?? false;
+  const canDelete = access?.capabilities.includes("venture.validation.delete") ?? false;
   const [objectives, setObjectives] = useState<Objective[]>([]);
   const [coverageNodes, setCoverageNodes] = useState<CoverageNode[]>([]);
   const [coverageAnalysis, setCoverageAnalysis] = useState<CoverageAnalysis | null>(null);
@@ -59,7 +63,9 @@ export default function ValidatePage({ session }: { session: Session }) {
         fetch("/api/validate/coverage", { cache: "no-store" }),
         fetch("/api/objectives?limit=100", { cache: "no-store" }),
         fetch("/api/validate/intelligence", { cache: "no-store" }),
+        fetch("/api/venture/access", { cache: "no-store" }),
       ]);
+      if (accessRes.ok) setAccess(await accessRes.json());
       if (signalsRes.ok) setSignals(await signalsRes.json());
       if (coverageRes.ok) {
         const data = (await coverageRes.json()) as ValidationCoverageResponse;
@@ -169,7 +175,7 @@ export default function ValidatePage({ session }: { session: Session }) {
       <section className="validate-workspace">
         <div className="home-section-heading">
           <div><span className="home-eyebrow">Validation pulse</span><h2>Evidence Coverage</h2></div>
-          <button className="btn-primary" onClick={openIntelligentSignal}>+ New signal</button>
+          {canWrite && <button className="btn-primary" onClick={openIntelligentSignal}>+ New signal</button>}
         </div>
 
         <div className="validate-type-grid">
@@ -200,7 +206,7 @@ export default function ValidatePage({ session }: { session: Session }) {
           </div>
         )}
 
-        {showForm && (
+        {showForm && canWrite && (
           <form onSubmit={handleSubmit} className="validate-create-panel">
             <div className="validate-create-heading"><div><span className="home-eyebrow">Evidence contract</span><h2>Record signal</h2></div><button type="button" className="btn-ghost" onClick={() => setShowForm(false)}>Close</button></div>
             <div className="validate-type-selector">
@@ -229,7 +235,7 @@ export default function ValidatePage({ session }: { session: Session }) {
                 {signal.hypothesis && <p><strong>Hypothesis</strong>{signal.hypothesis}</p>}
                 {signal.result && <p><strong>Result</strong>{signal.result}</p>}
                 {signal.learning && <blockquote>{signal.learning}</blockquote>}
-                <div className="validate-signal-foot"><span>{coverageNodes.find((node) => node.id === signal.objectiveId)?.title ?? "Unlinked evidence"}</span>{session.role !== "operador" && <button onClick={() => void deleteSignal(signal.id)}>Delete</button>}</div>
+                <div className="validate-signal-foot"><span>{coverageNodes.find((node) => node.id === signal.objectiveId)?.title ?? "Unlinked evidence"}</span>{canDelete && <button onClick={() => void deleteSignal(signal.id)}>Delete</button>}</div>
               </article>
             ))}
           </div>

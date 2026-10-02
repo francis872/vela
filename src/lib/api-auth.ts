@@ -8,6 +8,8 @@ import {
 import { prisma } from "@/lib/prisma";
 import { sha256 } from "@/lib/security";
 import { touchAuthSession } from "@/lib/auth-session-service";
+import { resolveAccessContext, type AccessScope } from "@/lib/access-context";
+import { hasCapability, type Capability } from "@/lib/capabilities";
 
 export const ALL_ROLES: SessionRole[] = ["admin", "analista", "operador"];
 
@@ -91,4 +93,31 @@ export async function requireAuth(
   }
 
   return { ok: true, session };
+}
+
+
+export async function requireCapability(
+  request: Request,
+  input: { scope: AccessScope; scopeId?: string; capability: Capability },
+): Promise<
+  | { ok: true; session: SessionPayload; context: NonNullable<Awaited<ReturnType<typeof resolveAccessContext>>> }
+  | AuthFail
+> {
+  const auth = await requireAuth(request);
+  if (!auth.ok) return auth;
+
+  const context = await resolveAccessContext({
+    userId: auth.session.sub,
+    scope: input.scope,
+    scopeId: input.scopeId,
+  });
+
+  if (!context || !hasCapability(context, input.capability)) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "No autorizado para este recurso" }, { status: 403 }),
+    };
+  }
+
+  return { ok: true, session: auth.session, context };
 }

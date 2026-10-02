@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
-import { requireRole, SESSION_COOKIE } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
 import { listActiveAuthSessions } from "@/lib/auth-session-service";
 import { sha256 } from "@/lib/security";
 
 export async function GET(request: Request) {
-  const auth = await requireRole(request, ["admin", "analista", "operador"]);
+  const auth = await requireAuth(request, ["admin", "analista", "operador"]);
 
   if (!auth.ok) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    return auth.response;
   }
 
   const cookieHeader = request.headers.get("cookie") || "";

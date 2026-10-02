@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireRole } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
 import { createUser, listUsers, updateUser } from "@/lib/user-service";
 import { writeAuditLog } from "@/lib/audit-service";
 import { getRequestMeta } from "@/lib/security";
@@ -26,10 +26,10 @@ const updateUserSchema = z.object({
 });
 
 export async function GET(request: Request) {
-  const auth = await requireRole(request, ["admin"]);
+  const auth = await requireAuth(request, ["admin"]);
 
   if (!auth.ok) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    return auth.response;
   }
 
   try {
@@ -41,10 +41,10 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireRole(request, ["admin"]);
+  const auth = await requireAuth(request, ["admin"]);
 
   if (!auth.ok) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    return auth.response;
   }
 
   try {
@@ -74,10 +74,10 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const auth = await requireRole(request, ["admin"]);
+  const auth = await requireAuth(request, ["admin"]);
 
   if (!auth.ok) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    return auth.response;
   }
 
   try {
