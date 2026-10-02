@@ -361,7 +361,7 @@ function ObjectiveCard({ obj, onStatus, onDelete, canDelete, compact }: {
       </div>
       {open && (
         <div className="build-objective-actions" onClick={(e) => e.stopPropagation()}>
-          {COLUMNS.map((status) => <button key={status} className={obj.status === status ? "is-current" : ""} onClick={() => void onStatus(obj.id, status)}>{STATUS_LABEL[status]}</button>)}
+          {onStatus && COLUMNS.map((status) => <button key={status} className={obj.status === status ? "is-current" : ""} onClick={() => void onStatus(obj.id, status)}>{STATUS_LABEL[status]}</button>)}
           {canDelete && <button className="is-delete" onClick={() => void onDelete(obj.id)}>Delete</button>}
         </div>
       )}
