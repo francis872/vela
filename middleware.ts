@@ -45,6 +45,17 @@ function isApiRoute(pathname: string) {
 function requiresProfile(pathname: string) {
   return (
     pathname.startsWith("/access") ||
+    pathname.startsWith("/build") ||
+    pathname.startsWith("/validate") ||
+    pathname.startsWith("/capital") ||
+    pathname.startsWith("/risk") ||
+    pathname.startsWith("/financial-protection") ||
+    pathname.startsWith("/relay") ||
+    pathname.startsWith("/network") ||
+    pathname.startsWith("/venture") ||
+    pathname.startsWith("/team") ||
+    pathname.startsWith("/engine") ||
+    pathname.startsWith("/space") ||
     pathname.startsWith("/admin") ||
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/velaseed") ||
@@ -111,6 +122,17 @@ export const config = {
   matcher: [
     "/vela/:path*",
     "/access/:path*",
+    "/build/:path*",
+    "/validate/:path*",
+    "/capital/:path*",
+    "/risk/:path*",
+    "/financial-protection/:path*",
+    "/relay/:path*",
+    "/network/:path*",
+    "/venture/:path*",
+    "/team/:path*",
+    "/engine/:path*",
+    "/space/:path*",
     "/profile/:path*",
     "/admin/:path*",
     "/dashboard/:path*",
