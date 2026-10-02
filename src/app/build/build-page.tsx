@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import GraphView from "./graph-view";
 
 type Session = { name: string; email: string; role: string };
+type CapabilityAccess = { capabilities: string[]; membership: { role: string } | null };
 
 type BuildIntelligence = {
   status: "ATTENTION" | "FOCUS" | "STABLE" | "SETUP";
@@ -63,6 +64,9 @@ const COLUMNS = ["on_track", "at_risk", "blocked", "completed"] as const;
 
 export default function BuildPage({ session }: { session: Session }) {
   const [objectives, setObjectives] = useState<Objective[]>([]);
+  const [access, setAccess] = useState<CapabilityAccess | null>(null);
+  const canWrite = access?.capabilities.includes("venture.objectives.write") ?? false;
+  const canDelete = access?.capabilities.includes("venture.objectives.delete") ?? false;
   const [loading, setLoading] = useState(true);
   const [intelligence, setIntelligence] = useState<BuildIntelligence | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -80,11 +84,13 @@ export default function BuildPage({ session }: { session: Session }) {
   async function load(silent = false) {
     if (!silent) setLoading(true);
     try {
-      const [objectivesRes, intelligenceRes] = await Promise.all([
+      const [objectivesRes, intelligenceRes, accessRes] = await Promise.all([
         fetch("/api/objectives?limit=50", { cache: "no-store" }),
         fetch("/api/build/intelligence", { cache: "no-store" }),
+        fetch("/api/venture/access", { cache: "no-store" }),
       ]);
       if (objectivesRes.ok) setObjectives(await objectivesRes.json());
+      if (accessRes.ok) setAccess(await accessRes.json());
       if (intelligenceRes.ok) {
         const payload = await intelligenceRes.json();
         setIntelligence(payload.intelligence ?? null);
@@ -268,10 +274,10 @@ export default function BuildPage({ session }: { session: Session }) {
             <button className={activeTab === "board" ? "is-active" : ""} onClick={() => setActiveTab("board")}>Board</button>
             <button className={activeTab === "graph" ? "is-active" : ""} onClick={() => setActiveTab("graph")}>Dependency Graph</button>
           </div>
-          {activeTab === "board" && <button className="btn-primary" onClick={() => setShowForm((value) => !value)}>+ New objective</button>}
+          {activeTab === "board" && canWrite && <button className="btn-primary" onClick={() => setShowForm((value) => !value)}>+ New objective</button>}
         </div>
 
-        {showForm && activeTab === "board" && (
+        {showForm && activeTab === "board" && canWrite && (
           <form onSubmit={handleCreate} className="build-create-panel">
             <div className="build-create-heading">
               <div><span className="home-eyebrow">Execution contract</span><h2>New objective</h2></div>
@@ -280,7 +286,7 @@ export default function BuildPage({ session }: { session: Session }) {
             <label>Outcome<input className="os-input" placeholder="What must change?" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></label>
             <label>Context<textarea className="os-input os-textarea" placeholder="Why does this matter?" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} /></label>
             <div className="build-create-grid">
-              <label>Status<select className="os-input" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>{STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}</select></label>
+              <label>Status<select className="os-input" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>{onStatus && STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}</select></label>
               <label>Priority<select className="os-input" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}><option value="1">Priority 1</option><option value="2">Priority 2</option><option value="3">Priority 3</option></select></label>
               <label>Due date<input type="date" className="os-input" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} /></label>
             </div>
@@ -307,7 +313,7 @@ export default function BuildPage({ session }: { session: Session }) {
                     <section key={column} className={`build-column build-column-${column}`}>
                       <header><div><span className="build-column-dot" /><h3>{STATUS_LABEL[column]}</h3></div><span>{items.length}</span></header>
                       <div className="build-column-body">
-                        {items.map((objective) => <ObjectiveCard key={objective.id} obj={objective} onStatus={updateStatus} onDelete={deleteObj} canDelete={session.role !== "operador"} />)}
+                        {items.map((objective) => <ObjectiveCard key={objective.id} obj={objective} onStatus={canWrite ? updateStatus : undefined} onDelete={deleteObj} canDelete={canDelete} />)}
                         {!items.length && <div className="build-empty">No objectives</div>}
                       </div>
                     </section>
@@ -317,7 +323,7 @@ export default function BuildPage({ session }: { session: Session }) {
             ) : (
               <div className="build-list">
                 {!displayed.length && <div className="build-empty">No objectives in this state.</div>}
-                {displayed.map((objective) => <ObjectiveCard key={objective.id} obj={objective} onStatus={updateStatus} onDelete={deleteObj} canDelete={session.role !== "operador"} compact />)}
+                {displayed.map((objective) => <ObjectiveCard key={objective.id} obj={objective} onStatus={updateStatus} onDelete={deleteObj} canDelete={canDelete} compact />)}
               </div>
             )}
           </>
@@ -333,7 +339,7 @@ function BuildMetric({ label, value, note, tone }: { label: string; value: numbe
 
 function ObjectiveCard({ obj, onStatus, onDelete, canDelete, compact }: {
   obj: Objective;
-  onStatus: (id: string, status: string) => void;
+  onStatus?: (id: string, status: string) => void;
   onDelete: (id: string) => void;
   canDelete: boolean;
   compact?: boolean;
