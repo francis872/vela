@@ -36,9 +36,9 @@ export async function resolveAccessContext(input: {
   if (!scopeId) return null;
 
   if (scope === "venture") {
-    const venture = await prisma.venture.findUnique({ where: { id: scopeId }, select: { id: true, ownerId: true } });
+    const venture = await prisma.venture.findUnique({ where: { id: scopeId }, select: { id: true, userId: true } });
     if (!venture) return null;
-    if (venture.ownerId === userId) {
+    if (venture.userId === userId) {
       return { scope, scopeId, userId, membership: { kind: "owner", id: venture.id, role: "owner", status: "active" } };
     }
     const member = await prisma.ventureMember.findUnique({
