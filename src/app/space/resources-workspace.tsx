@@ -1,4 +1,6 @@
 "use client";
+
+type CapabilityAccess = { capabilities: string[]; membership: { role: string } | null };
 import {useEffect,useState} from "react";
 import Link from "next/link";
 type R={id:string;title:string;desc:string;resourceType:string;status:string;criticality:string;monthlyCost:number|null;usageStatus:string;allocations:number};
