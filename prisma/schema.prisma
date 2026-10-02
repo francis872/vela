@@ -1237,11 +1237,14 @@ model OrganizationUser {
   userId            String
   user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   role              String       @default("viewer") // admin, mentor, viewer
+  status            String       @default("active") // active, inactive
   createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
   @@unique([organizationId, userId])
-  @@index([organizationId])
+  @@index([organizationId, status])
   @@index([userId])
+  @@index([role])
 }
 
 // ─── AI Intelligence & Memory System ──────────────────────────────────────────
