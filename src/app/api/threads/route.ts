@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireRole } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { dispatchDomainEvent } from "@/lib/domain-events";
 
 export async function GET(req: NextRequest) {
-  const auth = await requireRole(req, ["admin", "analista", "operador"]);
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const auth = await requireAuth(req, ["admin", "analista", "operador"]);
+  if (!auth.ok) return auth.response;
 
   const url = new URL(req.url);
   const limit = Number(url.searchParams.get("limit") ?? 30);
@@ -21,8 +21,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireRole(req, ["admin", "analista", "operador"]);
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const auth = await requireAuth(req, ["admin", "analista", "operador"]);
+  if (!auth.ok) return auth.response;
 
   const body = await req.json();
   const { title, body: threadBody, category } = body;
@@ -47,8 +47,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const auth = await requireRole(req, ["admin", "analista"]);
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const auth = await requireAuth(req, ["admin", "analista"]);
+  if (!auth.ok) return auth.response;
 
   const { id } = await req.json();
   await prisma.thread.delete({ where: { id } });
