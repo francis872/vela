@@ -764,6 +764,9 @@ model Venture {
   protectionGaps      ProtectionGap[]
   financialProtectionScenarios FinancialProtectionScenario[]
   financialActions    FinancialAction[]
+  ventureEvidence    VentureEvidence[]
+  ventureEvaluations VentureEvaluation[]
+  ventureStateSnapshots VentureStateSnapshot[]
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
@@ -1747,4 +1750,221 @@ model InvestmentReview {
 
   @@index([ownerId, opportunityId])
   @@index([ownerId, stage, status])
+}
+
+
+// ─── VELA Venture Intelligence 2.14 ─────────────────────────────────────────
+
+enum VentureEvidenceType {
+  SELF_REPORTED
+  SYSTEM_GENERATED
+  FINANCIAL
+  PRODUCT_ANALYTICS
+  CRM
+  SURVEY
+  INTERVIEW
+  EXPERIMENT
+  DOCUMENT
+  EXTERNAL
+  VERIFIED_EXTERNAL
+}
+
+enum VentureEvidenceNature {
+  FACT
+  ESTIMATE
+  ASSUMPTION
+  HYPOTHESIS
+  PREDICTION
+  RECOMMENDATION
+}
+
+enum VentureEvidenceVerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum VentureDimensionCode {
+  PROBLEM_MARKET
+  PRODUCT
+  VALIDATION_PMF
+  TRACTION
+  BUSINESS_MODEL
+  TEAM
+  EXECUTION
+  CAPITAL_RISK
+}
+
+enum VentureEvaluationStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPLETED
+  INSUFFICIENT_EVIDENCE
+  FAILED
+}
+
+model VentureEvidence {
+  id                 String                            @id @default(cuid())
+  ventureId          String
+  venture            Venture                           @relation(fields: [ventureId], references: [id], onDelete: Cascade)
+  type               VentureEvidenceType
+  nature             VentureEvidenceNature
+  source             String
+  sourceReference    String?
+  collectedAt        DateTime
+  periodStart        DateTime?
+  periodEnd          DateTime?
+  value              Json
+  unit               String?
+  confidence         Float?
+  verificationStatus VentureEvidenceVerificationStatus @default(UNVERIFIED)
+  metadata           Json?
+  provenance         Json
+  createdById        String?
+  createdAt          DateTime                           @default(now())
+  updatedAt          DateTime                           @updatedAt
+
+  @@index([ventureId, collectedAt])
+  @@index([ventureId, type])
+  @@index([ventureId, nature])
+  @@index([verificationStatus])
+  @@index([source])
+}
+
+model VentureEvaluationModel {
+  id          String                          @id @default(cuid())
+  key         String                          @unique
+  name        String
+  description String?
+  isActive    Boolean                         @default(true)
+  versions    VentureEvaluationModelVersion[]
+  createdAt   DateTime                        @default(now())
+  updatedAt   DateTime                        @updatedAt
+}
+
+model VentureEvaluationModelVersion {
+  id          String                     @id @default(cuid())
+  modelId     String
+  model       VentureEvaluationModel     @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  version     String
+  status      String                     @default("draft")
+  description String?
+  configuration Json?
+  activatedAt DateTime?
+  retiredAt   DateTime?
+  dimensions  VentureDimensionDefinition[]
+  evaluations VentureEvaluation[]
+  stateSnapshots VentureStateSnapshot[]
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+
+  @@unique([modelId, version])
+  @@index([status])
+  @@index([activatedAt])
+}
+
+model VentureDimensionDefinition {
+  id             String                         @id @default(cuid())
+  modelVersionId String
+  modelVersion   VentureEvaluationModelVersion  @relation(fields: [modelVersionId], references: [id], onDelete: Cascade)
+  code           VentureDimensionCode
+  name           String
+  description    String?
+  weight         Float?
+  sortOrder      Int                            @default(0)
+  indicators     VentureIndicatorDefinition[]
+  createdAt      DateTime                       @default(now())
+  updatedAt      DateTime                       @updatedAt
+
+  @@unique([modelVersionId, code])
+  @@index([modelVersionId, sortOrder])
+}
+
+model VentureIndicatorDefinition {
+  id            String                      @id @default(cuid())
+  dimensionId   String
+  dimension     VentureDimensionDefinition  @relation(fields: [dimensionId], references: [id], onDelete: Cascade)
+  key           String
+  name          String
+  description   String?
+  valueType     String                      @default("number")
+  unit          String?
+  weight        Float?
+  required      Boolean                     @default(false)
+  evidenceTypes VentureEvidenceType[]        @default([])
+  rule          Json?
+  createdAt     DateTime                    @default(now())
+  updatedAt     DateTime                    @updatedAt
+
+  @@unique([dimensionId, key])
+  @@index([dimensionId])
+}
+
+model VentureEvaluation {
+  id             String                         @id @default(cuid())
+  ventureId      String
+  venture        Venture                        @relation(fields: [ventureId], references: [id], onDelete: Cascade)
+  modelVersionId String
+  modelVersion   VentureEvaluationModelVersion  @relation(fields: [modelVersionId], references: [id], onDelete: Restrict)
+  status         VentureEvaluationStatus        @default(DRAFT)
+  requestedById  String?
+  summary        Json?
+  startedAt      DateTime                       @default(now())
+  completedAt    DateTime?
+  dimensionResults VentureDimensionResult[]
+  stateSnapshots VentureStateSnapshot[]
+  createdAt      DateTime                       @default(now())
+  updatedAt      DateTime                       @updatedAt
+
+  @@index([ventureId, createdAt])
+  @@index([modelVersionId, status])
+}
+
+model VentureDimensionResult {
+  id                    String                @id @default(cuid())
+  evaluationId          String
+  evaluation            VentureEvaluation     @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  dimension             VentureDimensionCode
+  status                String                @default("INSUFFICIENT_EVIDENCE")
+  value                 Float?
+  confidence            Float?
+  evidenceCount         Int                   @default(0)
+  verifiedEvidenceCount Int                   @default(0)
+  uncertainty           Float?
+  lastUpdated           DateTime?
+  explanation           String?
+  supportingEvidence    Json?
+  drivers               Json?
+  counterSignals        Json?
+  missingEvidence       Json?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+
+  @@unique([evaluationId, dimension])
+  @@index([dimension, status])
+}
+
+model VentureStateSnapshot {
+  id                String                         @id @default(cuid())
+  ventureId         String
+  venture           Venture                        @relation(fields: [ventureId], references: [id], onDelete: Cascade)
+  evaluationId      String?
+  evaluation        VentureEvaluation?             @relation(fields: [evaluationId], references: [id], onDelete: SetNull)
+  modelVersionId    String
+  modelVersion      VentureEvaluationModelVersion  @relation(fields: [modelVersionId], references: [id], onDelete: Restrict)
+  sequence          Int
+  stateVector       Json
+  dimensions        Json
+  quality           Json
+  delta             Json?
+  fingerprint       String
+  sourceEventId     String?
+  capturedAt        DateTime                       @default(now())
+  createdAt         DateTime                       @default(now())
+
+  @@unique([ventureId, sequence])
+  @@unique([ventureId, fingerprint])
+  @@index([ventureId, capturedAt])
+  @@index([modelVersionId, capturedAt])
 }
